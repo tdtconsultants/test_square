@@ -1,0 +1,30 @@
+<odoo>
+
+    <record model="ir.ui.view" id="tdt_queue_tree">
+      <field name="name">Tdt.Queue.tree</field>
+      <field name="model">tdt_queue</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="name"/>
+          <field name="type_jobs"/>
+        </tree>
+      </field>
+    </record>
+
+    <record model="ir.actions.act_window" id="tdt_queue_action_window">
+        <field name="name">Tdt.Queue.action</field>
+        <field name="res_model">tdt_queue</field>
+        <field name="view_mode">tree,form</field>
+        <field name="view_id" ref="tdt_queue_tree"/>
+    </record>
+
+
+    <menuitem name="tdt_queue" id="tdt_queue_menu_root"/>
+
+    <menuitem name="Menu 1" id="tdt_queue_menu_1" parent="tdt_queue_menu_root"/>
+
+    <menuitem name="List" id="tdt_queue_menu_1_list" parent="tdt_queue_menu_1"
+              action="tdt_queue_action_window"/>
+
+
+</odoo>
