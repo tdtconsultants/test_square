@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <record id="view_omnibus_tree" model="ir.ui.view">
+            <field name="name">omnibus_tree</field>
+            <field name="model">omnibus</field>
+            <field name="arch" type="xml">
+                <tree string="Omnibus">
+                    <field name="capacity"/>
+                    <field name="chofer"/>
+                    <field name="cost"/>
+                    <field name="type_of_fuel"/>
+                    <field name="registration_plate"/>
+                    <field name="ruta"/>
+                    <field name="active"/>
+                    <field name="fecha_entrada"/>
+                    <field name="fecha_salida"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="view_omnibus_form" model="ir.ui.view">
+            <field name="name">omnibus_form</field>
+            <field name="model">omnibus</field>
+            <field name="arch" type="xml">
+                <form string="Omnibus">
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="capacity"/>
+                                <field name="chofer"/>
+                                <field name="registration_plate"/>
+                                <field name="fecha_entrada"/>
+                            </group>
+                            <group>
+                                <field name="type_of_fuel"/>
+                                <field name="ruta"/>
+                                <field name="active"/>
+                                <field name="fecha_salida"/>
+                            </group>
+                        </group>
+                    </sheet>
+
+                </form>
+            </field>
+        </record>
+
+        <record id="action_omnibus" model="ir.actions.act_window">
+            <field name="name">Omnibus</field>
+            <field name="res_model">omnibus</field>
+            <field name="view_mode">tree,form,kanban</field>
+            <field name="help" type="html">
+              <p class="o_view_nocontent_smiling_face">
+                Ingresa un nuevo omnibus
+              </p>
+            </field>
+        </record>
+
+        <menuitem
+            id="omnibus_root"
+            name="Omnibus"
+            parent="base_transporte_root"
+        />
+        <menuitem
+            id="omnibus"
+            name="Omnibus"
+            parent="omnibus_root"
+            action="action_omnibus"
+        />
+    </data>
+</odoo>

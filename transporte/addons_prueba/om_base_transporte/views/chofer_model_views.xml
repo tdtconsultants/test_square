@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <record id="view_chofer_tree" model="ir.ui.view">
+            <field name="name">chofer_tree</field>
+            <field name="model">chofer</field>
+            <field name="arch" type="xml">
+                <tree string="Chofer">
+                    <field name="name"/>
+                    <field name="routes"/>
+                    <field name="availability"/>
+                    <field name="multas"/>
+                    <field name="type_of_licence"/>
+                    <field name="age"/>
+                    <field name="omnibus_id"/>
+                </tree>
+            </field>
+        </record>
+
+         <record id="view_chofer_form" model="ir.ui.view">
+            <field name="name">Chofer_form</field>
+            <field name="model">chofer</field>
+            <field name="arch" type="xml">
+                <form string="Chofer">
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="name"/>
+                            </group>
+                            <group>
+                                <field name="routes"/>
+                            </group>
+                            <group>
+                                <field name="multas"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group>
+                                <field name="type_of_licence"/>
+                            </group>
+                            <group>
+                                <field name="age"/>
+                            </group>
+                            <group>
+                                <field name="omnibus_id"/>
+                            </group>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="action_chofer" model="ir.actions.act_window">
+            <field name="name">Chofer</field>
+            <field name="res_model">chofer</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="view_mode">tree,kanban,form</field>
+            <field name="help" type="html">
+              <p class="o_view_nocontent_smiling_face">
+                Ingresa un nuevo chofer
+              </p>
+            </field>
+        </record>
+
+        <menuitem
+            id="base_transporte_root"
+            name="Base transporte"
+            sequence="1"
+        />
+
+        <menuitem
+            id="chofer_root"
+            name="Chofer"
+            parent="base_transporte_root"
+        />
+
+        <menuitem
+            id="chofer"
+            name="Chofer"
+            parent="chofer_root"
+            action="action_chofer"
+        />
+
+    </data>
+</odoo>

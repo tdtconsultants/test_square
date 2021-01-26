@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+acces_chofer,Chofer,model_chofer,,1,1,1,1
+acces_omnibus,Ombibus,model_omnibus,,1,1,1,1
+acces_ruta,Ruta,model_ruta,,1,1,1,1
+acces_panel,panel_info,model_panel_info,,1,1,1,1

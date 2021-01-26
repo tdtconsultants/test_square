@@ -1,0 +1,23 @@
+{
+    'name' : 'Base Transporte',
+    'version' : '1.0',
+    'summary': 'Empresa de transporte',
+    'sequence': 1,
+    'description': """Empresa de transporte""",
+    'category': 'Productivity',
+    'website': 'basetransporte',
+    'depends' : [],
+    'data': [
+        'views/chofer_model_views.xml',
+        'security/ir.model.access.csv',
+        'views/omnibus_model_views.xml',
+        'views/ruta_view.xml',
+        'views/info_view.xml',
+        'views/panel_info_view.xml',
+    ],
+    'demo': [],
+    'qweb': [],
+    'installable': True,
+    'application': True,
+    'auto_install': False,
+}

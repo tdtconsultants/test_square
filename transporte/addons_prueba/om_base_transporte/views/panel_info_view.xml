@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <record id="view_panel_tree" model="ir.ui.view">
+            <field name="name">panel_tree</field>
+            <field name="model">panel_info</field>
+            <field name="arch" type="xml">
+                <tree string="Omnibus">
+                    <field name="amount_of_leves"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="action_panel_info" model="ir.actions.act_window">
+            <field name="name">Info</field>
+            <field name="res_model">panel_info</field>
+            <field name="view_mode">kanban</field>
+            <field name="help" type="html">
+              <p class="o_view_nocontent_smiling_face">
+                Ingresa una nueva info
+              </p>
+            </field>
+        </record>
+
+        <menuitem
+            id="panel_info_root"
+            name="info"
+            parent="base_transporte_root"
+        />
+
+        <menuitem
+            id="panel_info"
+            name="Info"
+            parent="panel_info_root"
+            action="action_panel_info"
+        />
+
+    </data>
+</odoo>

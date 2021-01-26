@@ -1,0 +1,27 @@
+<odoo>
+    <data>
+        <record id="action_ruta" model="ir.actions.act_window">
+            <field name="name">Ruta</field>
+            <field name="res_model">ruta</field>
+            <field name="view_mode">tree,form,kanban</field>
+            <field name="help" type="html">
+              <p class="o_view_nocontent_smiling_face">
+                Ingresa una nueva ruta
+              </p>
+            </field>
+        </record>
+
+        <menuitem
+            id="ruta_root"
+            name="Ruta"
+            parent="base_transporte_root"
+        />
+        <menuitem
+            id="ruta"
+            name="Ruta"
+            parent="ruta_root"
+            action="action_ruta"
+        />
+
+    </data>
+</odoo>
