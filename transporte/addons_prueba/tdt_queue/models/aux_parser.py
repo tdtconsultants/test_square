@@ -1,4 +1,7 @@
 class Parser:
+##############################################################################
+#################################CUSTOMER#####################################
+##############################################################################
     @staticmethod
     def _parse_odoo_to_general(partner):
 
@@ -81,30 +84,59 @@ class Parser:
         }
         return odoo_dic
 
+##############################################################################
+##################################PAYMENT#####################################
+##############################################################################
+
     def _parse_payment_general_to_odoo(self, general_payment):
         odoo_payment = {}
 
-        odoo_payment['payment_square_id'] = general_payment['general_payment_square_id']
-        odoo_payment['amount'] = general_payment['general_payment_amount_money']['amount']
-        currency = self.env['res.currency'].search([('name', '=', general_payment['general_payment_amount_money']['currency'])])
-        odoo_payment['currency_id'] = currency.id
+        odoo_payment['payment_square_id'] = general_payment['id']
+        if 'amount_money' in general_payment:
+            odoo_payment['amount'] = general_payment['amount_money']['amount']
+            currency = self.env['res.currency'].search([('name', '=', general_payment['amount_money']['currency'])])
+            odoo_payment['currency_id'] = currency.id
         if 'tip_money' in general_payment:
-            odoo_payment['tip_amount'] = general_payment['tip_money']['general_payment_tip_amount']
-            currency_tip = self.env['res.currency'].search([('name', '=', general_payment['tip_money']['general_payment_tip_currency'])])
+            odoo_payment['tip_amount'] = general_payment['tip_money']['amount']
+            currency_tip = self.env['res.currency'].search([('name', '=', general_payment['tip_money']['currency'])])
             odoo_payment['tip_currency_id'] = currency_tip.id
         if 'app_fee_money' in general_payment:
-            odoo_payment['app_fee_amount'] = general_payment['app_fee_money']['general_payment_fee_amount']
-            currency_fee = self.env['res.currency'].search([('name', '=', general_payment['app_fee_money']['general_payment_fee_currency'])])
+            odoo_payment['app_fee_amount'] = general_payment['app_fee_money']['amount']
+            currency_fee = self.env['res.currency'].search([('name', '=', general_payment['app_fee_money']['currency'])])
             odoo_payment['app_fee_currency_id'] = currency_fee.id
-        odoo_payment['payment_status'] = general_payment['general_payment_status']
+        if 'status' in general_payment:
+            odoo_payment['payment_status'] = general_payment['status']
+        if 'source_type' in general_payment:
+            odoo_payment['payment_status'] = general_payment['source_type']
+        if 'location_id' in general_payment:
+            odoo_payment['square_location_id'] = general_payment['location_id']
+        if 'order_id' in general_payment:
+            odoo_payment['square_order_id'] = general_payment['order_id']
+        if 'buyer_email_address' in general_payment:
+            odoo_payment['buyer_email_address'] = general_payment['buyer_email_address']
+        if 'note' in general_payment:
+            odoo_payment['note'] = general_payment['note']
+        if 'customer_id' in general_payment:
+            odoo_payment['square_customer_id'] = general_payment['customer_id']
+        if 'receipt_number' in general_payment:
+            odoo_payment['square_receipt_number'] = general_payment['receipt_number']
+        if 'receipt_url' in general_payment:
+            odoo_payment['square_receipt_url'] = general_payment['receipt_url']
 
-        shipping_address = self.env['ShippingAddress'].create(general_payment['general_shipping_address'])
-        odoo_payment['shipping_address_id'] = shipping_address.id
-
-        billing_address = self.env['BillingAddress'].create(general_payment['general_billing_address'])
-        odoo_payment['billing_address_id'] = billing_address.id
+        return odoo_payment
 
 
 
+##############################################################################
+#################################LOCATION#####################################
+##############################################################################
+
+    def _parse_location_general_to_odoo(self, general_location):
+        odoo_location = {}
+
+        return odoo_location
 
 
+##############################################################################
+###################################ORDER######################################
+##############################################################################

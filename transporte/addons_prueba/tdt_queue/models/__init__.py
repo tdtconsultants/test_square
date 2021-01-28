@@ -2,4 +2,6 @@
 
 from . import models
 from . import customer
-
+from . import payment
+from . import address
+from . import location
