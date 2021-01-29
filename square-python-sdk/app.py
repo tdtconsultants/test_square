@@ -98,15 +98,30 @@ channel = connection.channel()
 
 
 #Delete all customers
-result = customer_api.list_customers()
+locations_api = client.locations
+result = locations_api.list_locations()
+
+body = {}
+body['location'] = {}
+body['location']['business_email'] = 'email@emaillll.com'
+body['location']['name'] = 'business namee'
+body['location']['phone_number'] = '1234567890'
+
+result = locations_api.create_location(body)
+
 if result.is_success():
-    for i in range(len(result.body['customers'])):
-        delete = customer_api.delete_customer(result.body['customers'][i]['id'])
-        if delete.is_success():
-            print('Delete')
-        else:
-            print(delete.errors)
+    print(result.body)
 elif result.is_error():
     print(result.errors)
-
+#
+# if result.is_success():
+#     for i in range(len(result.body['locations'])):
+#         delete = customer_api.delete_customer(result.body['locations'][i]['id'])
+#         if delete.is_success():
+#             print('Delete')
+#         else:
+#             print(delete.errors)
+# elif result.is_error():
+#     print(result.errors)
+#
 

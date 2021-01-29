@@ -1,11 +1,7 @@
 from square.client import Client
 import pika
 import json
-
 from parser import Parser
-
-
-
 
 client = Client(
     access_token='EAAAEDal4hW8gV_04ryfB8ehTT0NEEZYhqKalsiTfu-GpAZPEGcxRjldU-bhGY_M',
@@ -18,13 +14,13 @@ connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost')
 channel = connection.channel()
 
 
-def _find_location_by_description(descriprion):
+def _find_location_by_description(description):
     locations = locations_api.list_locations()
     found = False
     i = 0
     location = 'Not found'
-    while not found and i < range(len(locations.body['location'])):
-        if 'description' in locations.body['locations'][i] and locations.body['locations'][i] == descriprion:
+    while not found and i < len(locations.body['locations']):
+        if 'description' in locations.body['locations'][i] and locations.body['locations'][i]['description'] == description:
             found = True
             location = locations.body['locations'][i]
         else:
@@ -49,30 +45,27 @@ else:
                     square_location_id = general_dic['square_location_id']
 
                 location_square_id = locations_api.retrieve_location(square_location_id)
-                location_odoo_id = _find_location_by_description(str(square_dic['description']))
-
-                if location_odoo_id is not 'Not found':
-                    #Si lo encuentra por odoo_id significa que square ya recibio informaicon de este cliente, por lo tanto lo actualiza
-                    update_result = locations_api.update_customer(location_odoo_id.body['customers'][0]['id'], square_dic)
+                location_odoo_id = _find_location_by_description(str(square_dic['location']['description']))
+                if location_odoo_id != 'Not found':
+                    #Odoo y square ya saben de esta location
+                    update_result = locations_api.update_location(location_odoo_id['id'], square_dic)
                     if update_result.is_success():
                         print(update_result.body)
                     else:
                         print(update_result.errors)
                 elif location_square_id.is_success():
-                    #Si no lo encuetra por odoo_id pero si por square_id significa que square creo este cliente y lo envio a odoo, odoo lo creeo en su sistema y
-                    #mando un mensaje para que square actualize el valor odoo_id
-                    update_result = locations_api.update_customer(location_square_id.body['customer']['id'], square_dic)
+                    #Square creo esta location y odoo responde
+                    update_result = locations_api.update_location(location_square_id.body['location']['id'], square_dic)
                     if update_result.is_success():
                         print(update_result.body)
                     else:
                         print(update_result.errors)
                 else:
-                    #Si no lo encuentra por square_id ni por odoo_id significa que es un cliente nuevo de odoo
-                    #Luego envia a odoo un mensaje para que este acutalize su campo square id
-                    create_result = locations_api.create_customer(square_dic)
+                    #Crea una nueva location
+                    create_result = locations_api.create_location(square_dic)
                     if create_result.is_success():
                         print(create_result.body)
-                        response = Parser._parse_square_to_general(create_result.body['customer'])
+                        response = Parser._parse_square_location_to_general(create_result.body['location'])
                         message = json.dumps(response)
                         channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
                     elif create_result.is_error():

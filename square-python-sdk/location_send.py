@@ -9,28 +9,33 @@ client = Client(
     environment='sandbox',
 )
 
-body = {}
-body['limit'] = 2
-body['query'] = {}
-body['query']['filter'] = {}
-body['query']['filter']['created_at'] = {}
-body['query']['filter']['created_at']['start_at'] = '2021-01-21T00:00:00-00:00'
-
 locations_api = client.locations
 result = locations_api.list_locations()
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 channel = connection.channel()
 
-if result.is_success():
-    message = json.dumps(result.body['locations'])
+
+def _get_locations_created_later_than(date):
+    locations = locations_api.list_locations()
+    result = []
+    i = 0
+    while i < len(locations.body['locations']):
+        if locations.body['locations'][i]['created_at'] > date:
+            result.append(locations.body['locations'][i])
+        i = i + 1
+    return result
+
+
+locations = _get_locations_created_later_than('2021-01-29T14:36:08Z')
+if locations:
+    message = json.dumps(locations)
     if message != '{}':
-        for i in range(len(result.body['locations'])):
-            parser_dic = Parser._parse_square_location_to_general(result.body['locations'][i])
+        i = 0
+        while i < len(locations):
+            parser_dic = Parser._parse_square_location_to_general(locations[i])
             message = json.dumps(parser_dic)
             channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
-
-elif result.is_error():
-    print(result.errors)
+            i = i + 1
 
 channel.close()
 connection.close()

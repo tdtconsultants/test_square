@@ -219,66 +219,67 @@ class TdtQueue(models.Model):
 
     def _parse_odoo_location_to_general(self, odoo_location):
         general_dic = {}
+        general_dic['location'] = {}
         if odoo_location.business_email:
-            general_dic['business_email'] = odoo_location.business_email
+            general_dic['location']['business_email'] = odoo_location.business_email
         if odoo_location.business_name:
-            general_dic['busines_name'] = odoo_location.business_name
-        general_dic['description'] = odoo_location.id
+            general_dic['location']['business_name'] = odoo_location.business_name
+        general_dic['location']['description'] = str(odoo_location.id)
         if odoo_location.facebook_url:
-            general_dic['facebook_url'] = odoo_location.facebook_url
+            general_dic['location']['facebook_url'] = odoo_location.facebook_url
         if odoo_location.instagram_username:
-            general_dic['instagram_username'] = odoo_location.instagram_username
+            general_dic['location']['instagram_username'] = odoo_location.instagram_username
         if odoo_location.language_code:
-            general_dic['language_code'] = odoo_location.language_code
+            general_dic['location']['language_code'] = odoo_location.language_code
         if odoo_location.mcc:
-            general_dic['mcc'] = odoo_location.mcc
+            general_dic['location']['mcc'] = odoo_location.mcc
         if odoo_location.name:
-            general_dic['name'] = odoo_location.name
+            general_dic['location']['name'] = odoo_location.name
         if odoo_location.phone_number:
-            general_dic['phone_number'] = odoo_location.phone_number
+            general_dic['location']['phone_number'] = odoo_location.phone_number
         if odoo_location.status:
-            general_dic['status'] = odoo_location.status
+            general_dic['location']['status'] = odoo_location.status
         if odoo_location.timezone:
-            general_dic['timezone'] = odoo_location.timezone
+            general_dic['location']['timezone'] = odoo_location.timezone
         if odoo_location.twitter_username:
-            general_dic['twitter_username'] = odoo_location.twitter_username
+            general_dic['location']['twitter_username'] = odoo_location.twitter_username
         if odoo_location.type:
-            general_dic['type'] = odoo_location.type
+            general_dic['location']['type'] = odoo_location.type
         if odoo_location.website_url:
-            general_dic['website_url'] = odoo_location.website_url
+            general_dic['location']['website_url'] = odoo_location.website_url
         if odoo_location.square_address_id:
             address = self.env['square.address'].browse(odoo_location.square_address_id.id)
-            general_dic['address'] = {}
+            general_dic['location']['address'] = {}
             if address.address_line_1:
-                general_dic['address_line_1'] = address.address_line_1
+                general_dic['location']['address']['address_line_1'] = address.address_line_1
             if address.address_line_2:
-                general_dic['address_line_2'] = address.address_line_2
+                general_dic['location']['address']['address_line_2'] = address.address_line_2
             if address.address_line_3:
-                general_dic['address_line_3'] = address.address_line_3
+                general_dic['location']['address']['address_line_3'] = address.address_line_3
             if address.administrative_district_level_1:
-                general_dic['administrative_district_level_1'] = address.administrative_district_level_1
-            if address.address_line_2:
-                general_dic['administrative_district_level_2'] = address.administrative_district_level_2
+                general_dic['location']['address']['administrative_district_level_1'] = address.administrative_district_level_1
+            if address.administrative_district_level_2:
+                general_dic['location']['address']['administrative_district_level_2'] = address.administrative_district_level_2
             if address.administrative_district_level_3:
-                general_dic['administrative_district_level_3'] = address.administrative_district_level_3
+                general_dic['location']['address']['administrative_district_level_3'] = address.administrative_district_level_3
             if address.country:
-                general_dic['country'] = address.country
+                general_dic['location']['address']['country'] = address.country
             if address.first_name:
-                general_dic['first_name'] = address.first_name
+                general_dic['location']['address']['first_name'] = address.first_name
             if address.last_name:
-                general_dic['last_name'] = address.last_name
+                general_dic['location']['address']['last_name'] = address.last_name
             if address.locality:
-                general_dic['locality'] = address.locality
+                general_dic['location']['address']['locality'] = address.locality
             if address.organization:
-                general_dic['organization'] = address.organization
+                general_dic['location']['address']['organization'] = address.organization
             if address.postal_code:
-                general_dic['postal_code'] = address.postal_code
+                general_dic['location']['address']['postal_code'] = address.postal_code
             if address.sublocality:
-                general_dic['sublocality'] = address.sublocality
+                general_dic['location']['address']['sublocality'] = address.sublocality
             if address.sublocality2:
-                general_dic['sublocality_2'] = address.sublocality2
+                general_dic['location']['address']['sublocality_2'] = address.sublocality2
             if address.sublocality3:
-                general_dic['sublocality_3'] = address.sublocality3
+                general_dic['location']['address']['sublocality_3'] = address.sublocality3
 
         if odoo_location.square_location_id:
             square_location_id = odoo_location.square_location_id
@@ -306,7 +307,7 @@ class TdtQueue(models.Model):
         else:
             while result[0].message_count >= 0:
                 parsed_message = json.loads(result[2])
-                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
+                if 'kay' in parsed_message and parsed_message['key'] != 'odoo':
                     if 'type' in parsed_message and parsed_message['type'] == 'customer':
                         dict = self._parse_general_customer_to_odoo(parsed_message['data']) #self._parse_general_dic_to_odoo(parsed_message)
                         partner_square_id = self.env['res.partner'].search([('square_id', '=', dict['square_id'])])
@@ -448,4 +449,4 @@ class TdtQueue(models.Model):
 
     def _testing(self):
         print('sfsfs')
-        self.env['stock.warehouse'].create({'code':'code', 'name': 'name'})
+        self.env['stock.warehouse'].create({'code':'Odoooo', 'name': 'Creado odoo', 'square_address_id': 1, 'business_email': 'email@business.com'})
