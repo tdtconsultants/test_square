@@ -45,15 +45,7 @@ else:
                     square_location_id = general_dic['square_location_id']
 
                 location_square_id = locations_api.retrieve_location(square_location_id)
-                location_odoo_id = _find_location_by_description(str(square_dic['location']['description']))
-                if location_odoo_id != 'Not found':
-                    #Odoo y square ya saben de esta location
-                    update_result = locations_api.update_location(location_odoo_id['id'], square_dic)
-                    if update_result.is_success():
-                        print(update_result.body)
-                    else:
-                        print(update_result.errors)
-                elif location_square_id.is_success():
+                if location_square_id.is_success():
                     #Square creo esta location y odoo responde
                     update_result = locations_api.update_location(location_square_id.body['location']['id'], square_dic)
                     if update_result.is_success():

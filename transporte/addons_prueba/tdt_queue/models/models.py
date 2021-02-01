@@ -3,7 +3,6 @@ from odoo import models, fields, api
 from queue import Queue
 import pika
 import sys
-import threading
 import json
 from pytz import timezone
 import datetime
@@ -187,6 +186,7 @@ class TdtQueue(models.Model):
         else:
             new_address = self.env['square.address'].create(general_location['address'])
             odoo_location['square_address_id'] = new_address.id
+        self.env.cr.commit()
         odoo_location['square_location_id'] = general_location['id']
         if 'name' in general_location:
             odoo_location['name'] = general_location['name']
@@ -214,7 +214,12 @@ class TdtQueue(models.Model):
             odoo_location['facebook_url'] = general_location['facebook_url']
         if 'mcc' in general_location:
             odoo_location['mcc'] = general_location['mcc']
+        if 'description' in general_location:
+            odoo_location['description'] = general_location['description']
 
+        odoo_location['code'] = general_location['name']
+
+        odoo_location['square_warehouse'] = True
         return odoo_location
 
     def _parse_odoo_location_to_general(self, odoo_location):
@@ -224,7 +229,8 @@ class TdtQueue(models.Model):
             general_dic['location']['business_email'] = odoo_location.business_email
         if odoo_location.business_name:
             general_dic['location']['business_name'] = odoo_location.business_name
-        general_dic['location']['description'] = str(odoo_location.id)
+        if odoo_location.description:
+            general_dic['location']['description'] = odoo_location.description
         if odoo_location.facebook_url:
             general_dic['location']['facebook_url'] = odoo_location.facebook_url
         if odoo_location.instagram_username:
@@ -409,8 +415,9 @@ class TdtQueue(models.Model):
                     if 'type' in parsed_message and parsed_message['type'] == 'location':
                         dict = self._parse_general_location_to_odoo(parsed_message['data'])
                         location_square_id = self.env['stock.warehouse'].search([('square_location_id', '=', dict['square_location_id'])])
-                        if 'description' in parsed_message['data']:
-                            location_odoo_id = self.env['stock.warehouse'].search([('id', '=', int(parsed_message['data']['description']))])
+                        if location_square_id.warehouse_count == 0:
+                            location_odoo_id = self.env['stock.warehouse'].search([('name', '=', parsed_message['data']['name']),
+                                                                                   ('phone_number', '=', parsed_message['data']['phone_number'])])
                         else:
                             location_odoo_id = None
 
@@ -449,4 +456,8 @@ class TdtQueue(models.Model):
 
     def _testing(self):
         print('sfsfs')
-        self.env['stock.warehouse'].create({'code':'Odoooo', 'name': 'Creado odoo', 'square_address_id': 1, 'business_email': 'email@business.com'})
+        self.env['stock.warehouse'].create({'name': 'Test 03',
+                                            'code':'Test3' ,
+                                            'square_address_id': 5,
+                                            'business_email': 'test03@test.com',
+                                            'phone_number': '1234567890',})

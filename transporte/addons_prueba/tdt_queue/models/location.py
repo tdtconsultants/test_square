@@ -23,3 +23,4 @@ class PosLocation(models.Model):
     type = fields.Char(string="type of location")
     website_url = fields.Char(string="website")
     currency = fields.Char(string="currency")
+    square_warehouse = fields.Boolean(string="Warehouse managed in square")
