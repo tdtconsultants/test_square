@@ -26,7 +26,7 @@ def _get_locations_created_later_than(date):
     return result
 
 
-locations = _get_locations_created_later_than('2021-01-29T14:36:08Z')
+locations = _get_locations_created_later_than('2021-02-02T13:00:00Z')
 if locations:
     message = json.dumps(locations)
     if message != '{}':

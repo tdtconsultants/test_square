@@ -15,52 +15,31 @@ class TdtQueue(models.Model):
 
     def _parse_odoo_customer_to_general(self, partner):
 
-        general_dic = {}
-
-        if partner.family_name:
-            general_dic['family_name'] = partner.family_name
-        if partner.given_name:
-            general_dic['given_name'] = partner.given_name
-        if partner.birthday:
-            general_dic['birthday'] = partner.birthday
-        if partner.company_name:
-            general_dic['company_name'] = partner.company_name
-        if partner.email:
-            general_dic['email_address'] = partner.email
-        if partner.display_name:
-            general_dic['nickname'] = partner.display_name
-        if partner.note:
-            general_dic['note'] = partner.note
-        if partner.mobile:
-            general_dic['phone_number'] = partner.mobile
-        general_dic['reference_id'] = str(partner.id)
-
-        general_dic['address'] = {}
-
-        if partner.street:
-            general_dic['address']['address_line_1'] = partner.street
-        if partner.street2:
-            general_dic['address']['address_line_2'] = partner.street2
-        if partner.street3:
-            general_dic['address']['address_line_3'] = partner.street3
-        if partner.administrative_district_level_1:
-            general_dic['address']['administrative_district_level_1'] = partner.administrative_district_level_1
-        if partner.administrative_district_level_2:
-            general_dic['address']['administrative_district_level_2'] = partner.administrative_district_level_2
-        if partner.administrative_district_level_3:
-            general_dic['address']['administrative_district_level_3'] = partner.administrative_district_level_3
-        if partner.country_id:
-            general_dic['address']['country'] =  partner.country_id.code
-        if partner.city:
-            general_dic['address']['locality'] = partner.city
-        if partner.zip:
-            general_dic['address']['postal_code'] = partner.zip
-        if partner.sublocality:
-            general_dic['address']['sublocality'] = partner.sublocality
-        if partner.sublocality2:
-            general_dic['address']['sublocality_2'] = partner.sublocality2
-        if partner.sublocality3:
-            general_dic['address']['sublocality_3'] = partner.sublocality3
+        general_dic = {
+            'company_name': partner.company_name if partner.company_name else None,
+            'email_address': partner.email if partner.email else None,
+            'nickname': partner.display_name if partner.display_name else None,
+            'note': partner.comment if partner.comment else None,
+            'phone_number': partner.phone if partner.phone else None,
+            'reference_id': str(partner.id),
+            'address': {
+                'address_line_1': partner.street if partner.street else None,
+                'address_line_2': partner.street2 if partner.street2 else None,
+                'administrative_district_level_1': partner.state_id.code if partner.state_id else None,
+                'country': partner.country_id.code if partner.country_id.code else None,
+                'locality': partner.city if partner.city else None,
+                'postal_code': partner.zip if partner.zip else None,
+            }
+        }
+        names = partner.name.split()
+        i = 0
+        general_dic['family_name'] = ''
+        while i < len(names):
+            if i == 0:
+                general_dic['given_name'] = names[i]
+            else:
+                general_dic['family_name'] = str(general_dic['family_name']) + ' ' + names[i]
+            i = i + 1
 
         if partner.square_id:
             square_id = partner.square_id
@@ -77,65 +56,46 @@ class TdtQueue(models.Model):
 
     def _parse_general_customer_to_odoo(self, general_dic):
 
-        odoo_dic = {}
-        if 'address_line_1' in general_dic['address']:
-            odoo_dic['street'] = general_dic['address']['address_line_1']
-        if 'address_line_2' in general_dic['address']:
-            odoo_dic['street2'] = general_dic['address']['address_line_2']
-        if 'address_line_3' in general_dic['address']:
-            odoo_dic['street3'] = general_dic['address']['address_line_3']
-        if 'administrative_district_level_1' in general_dic['address']:
-            odoo_dic['administrative_district_level_1'] = general_dic['address']['administrative_district_level_1']
-        if 'administrative_district_level_2' in general_dic['address']:
-            odoo_dic['administrative_district_level_2'] = general_dic['address']['administrative_district_level_2']
-        if 'administrative_district_level_3' in general_dic['address']:
-            odoo_dic['administrative_district_level_3'] = general_dic['address']['administrative_district_level_3']
+        odoo_dic = {
+            'street': general_dic['address']['address_line_1'] if 'address_line_1' in general_dic['address'] else None,
+            'street2': general_dic['address']['address_line_2'] if 'address_line_2' in general_dic['address'] else None,
+            'city': general_dic['address']['locality'] if 'locality' in general_dic['address'] else None,
+            'zip': general_dic['address']['postal_code'] if 'postal_code' in general_dic['address'] else None,
+            'company_name': general_dic['company_name'] if 'company_name' in general_dic else None,
+            'email': general_dic['email_address'] if 'email_address' in general_dic else None,
+            'name': general_dic['given_name'] + ' ' + general_dic['family_name'],
+            'display_name': general_dic['nickname'] if 'nickname' in general_dic else None,
+            'comment': general_dic['note'] if 'note' in general_dic else None,
+            'phone': general_dic['phone_number'] if 'phone_number' in general_dic else None,
+            'square_id': general_dic['id']
+        }
         if 'country' in general_dic['address']:
             country_code = general_dic['address']['country']
             country_res = self.env['res.country'].search([('code', '=', country_code)])
             if country_res:
                 odoo_dic['country_id'] = country_res.id
-        if 'locality' in general_dic['address']:
-            odoo_dic['city'] = general_dic['address']['locality']
-        if 'organization' in general_dic['address']:
-            odoo_dic['organization'] = general_dic['address']['organization']
-        if 'postal_code' in general_dic['address']:
-            odoo_dic['zip'] = general_dic['address']['postal_code']
-        if 'sublocality' in general_dic['address']:
-            odoo_dic['sublocality'] = general_dic['address']['sublocality']
-        if 'sublocality_2' in general_dic['address']:
-            odoo_dic['sublocality2'] = general_dic['address']['sublocality_2']
-        if 'sublocality_3' in general_dic['address']:
-            odoo_dic['sublocality3'] = general_dic['address']['sublocality_3']
-        if 'birthday' in general_dic:
-            odoo_dic['birthday'] = general_dic['birthday']
-        if 'company_name' in general_dic:
-            odoo_dic['company_name'] = general_dic['company_name']
-        if 'email_address' in general_dic:
-            odoo_dic['email'] = general_dic['email_address']
-        if 'family_name' in general_dic:
-            odoo_dic['family_name'] = general_dic['family_name']
-        if 'given_name' in general_dic:
-            odoo_dic['given_name'] = general_dic['given_name']
-        odoo_dic['name'] = general_dic['given_name'] + ' ' + general_dic['family_name']
-        if 'nickname' in general_dic:
-            odoo_dic['display_name'] = general_dic['nickname']
-        if 'note' in general_dic:
-            odoo_dic['note'] = general_dic['note']
-        if 'phone_number' in general_dic:
-            odoo_dic['mobile'] = general_dic['phone_number']
-        odoo_dic['square_id'] = general_dic['id']
+        if 'administrative_district_level_1' in general_dic['address']:
+            country_code = general_dic['address']['country']
+            state_code = general_dic['address']['administrative_district_level_1']
+            state_res = self.env['res.country.state'].search([('code', '=', state_code), ('country_id', '=', country_code)])
+            if state_res:
+                odoo_dic['state_id'] = state_res.id
 
         return odoo_dic
 
     def _parse_general_payment_to_odoo(self, general_payment):
-        odoo_payment = {}
+        odoo_payment = {
+            'payment_square_id': general_payment['id'],
+            'amount': general_payment['amount_money']['amount'] if 'amount_money' in general_payment else None,
+            'currency_id': self.env['res.currency'].search([('name', '=', general_payment['amount_money']['currency'])]).id if 'amount' in general_payment else None,
+            'tip_amount': general_payment['tip_money']['amount'] if 'tip_money' in general_payment else None,
+            'tip_currency_id' : 'asdf'
+        }
 
-        odoo_payment['payment_square_id'] = general_payment['id']
-        if 'amount_money' in general_payment:
-            odoo_payment['amount'] = general_payment['amount_money']['amount']
-            currency = self.env['res.currency'].search([('name', '=', general_payment['amount_money']['currency'])])
-            odoo_payment['currency_id'] = currency.id
+        # if 'amount_money' in general_payment:
+        #     odoo_payment['amount'] = general_payment['amount_money']['amount']
+        #     currency = self.env['res.currency'].search([('name', '=', general_payment['amount_money']['currency'])])
+        #     odoo_payment['currency_id'] = currency.id
         if 'tip_money' in general_payment:
             odoo_payment['tip_amount'] = general_payment['tip_money']['amount']
             currency_tip = self.env['res.currency'].search([('name', '=', general_payment['tip_money']['currency'])])
@@ -166,10 +126,26 @@ class TdtQueue(models.Model):
         return odoo_payment
 
     def _parse_odoo_payment_to_general(self):
-        return {}
+        pass
 
     def _parse_general_location_to_odoo(self,general_location):
-        odoo_location = {}
+        odoo_location = {
+            'name': general_location['name'] if 'name' in general_location else '',
+            'code': general_location['name'] if 'name' in general_location else '',
+            'timezone': general_location['timezone'] if 'timezone' in general_location else None,
+            'square_location_id': general_location['id'],
+            'status': general_location['status'] if 'status' in general_location else None,
+            'language_code': general_location['language_code'] if 'language_code' in general_location else None,
+            'currency_id': self.env['res.currency'].search([('name', '=', general_location['currency'])], limit = 1).id if 'currency' in general_location else None,
+            'phone_number': general_location['phone_number']  if 'phone_number' in general_location else None,
+            'business_name': general_location['business_name'] if 'business_name' in general_location else None,
+            'twitter_username': general_location['twitter_username'] if 'twitter_username' in general_location else None,
+            'instagram_username': general_location['instagram_username'] if 'instagram_username' in general_location else None,
+            'facebook_url': general_location['facebook_url'] if 'facebook_url' in general_location else None,
+            'mcc': general_location['mcc'] if 'mcc' in general_location else None,
+            'description': general_location['description'] if 'description' in general_location else None,
+            'square_warehouse': True,
+        }
         search_list = []
         if 'address' in general_location:
             if 'address_line_1' in general_location['address']:
@@ -187,105 +163,51 @@ class TdtQueue(models.Model):
             new_address = self.env['square.address'].create(general_location['address'])
             odoo_location['square_address_id'] = new_address.id
         self.env.cr.commit()
-        odoo_location['square_location_id'] = general_location['id']
-        if 'name' in general_location:
-            odoo_location['name'] = general_location['name']
-            odoo_location['code'] = general_location['name']
-        else:
-            odoo_location['name'] = ''
-            odoo_location['code'] = ''
-        if 'timezone' in general_location:
-            odoo_location['timezone'] = general_location['timezone']
-        if 'status' in general_location:
-            odoo_location['status'] = general_location['status']
-        if 'language_code' in general_location:
-            odoo_location['language_code'] = general_location['language_code']
-        if 'currency' in general_location:
-            odoo_location['currency'] = general_location['currency']
-        if 'phone_number' in general_location:
-            odoo_location['phone_number'] = general_location['phone_number']
-        if 'business_name' in general_location:
-            odoo_location['business_name'] = general_location['business_name']
-        if 'twitter_username' in general_location:
-            odoo_location['twitter_username'] = general_location['twitter_username']
-        if 'instagram_username' in general_location:
-            odoo_location['instagram_username'] = general_location['instagram_username']
-        if 'facebook_url' in general_location:
-            odoo_location['facebook_url'] = general_location['facebook_url']
-        if 'mcc' in general_location:
-            odoo_location['mcc'] = general_location['mcc']
-        if 'description' in general_location:
-            odoo_location['description'] = general_location['description']
 
-        odoo_location['code'] = general_location['name']
-
-        odoo_location['square_warehouse'] = True
         return odoo_location
 
     def _parse_odoo_location_to_general(self, odoo_location):
-        general_dic = {}
-        general_dic['location'] = {}
-        if odoo_location.business_email:
-            general_dic['location']['business_email'] = odoo_location.business_email
-        if odoo_location.business_name:
-            general_dic['location']['business_name'] = odoo_location.business_name
-        if odoo_location.description:
-            general_dic['location']['description'] = odoo_location.description
-        if odoo_location.facebook_url:
-            general_dic['location']['facebook_url'] = odoo_location.facebook_url
-        if odoo_location.instagram_username:
-            general_dic['location']['instagram_username'] = odoo_location.instagram_username
-        if odoo_location.language_code:
-            general_dic['location']['language_code'] = odoo_location.language_code
-        if odoo_location.mcc:
-            general_dic['location']['mcc'] = odoo_location.mcc
-        if odoo_location.name:
-            general_dic['location']['name'] = odoo_location.name
-        if odoo_location.phone_number:
-            general_dic['location']['phone_number'] = odoo_location.phone_number
-        if odoo_location.status:
-            general_dic['location']['status'] = odoo_location.status
-        if odoo_location.timezone:
-            general_dic['location']['timezone'] = odoo_location.timezone
-        if odoo_location.twitter_username:
-            general_dic['location']['twitter_username'] = odoo_location.twitter_username
-        if odoo_location.type:
-            general_dic['location']['type'] = odoo_location.type
-        if odoo_location.website_url:
-            general_dic['location']['website_url'] = odoo_location.website_url
+
         if odoo_location.square_address_id:
             address = self.env['square.address'].browse(odoo_location.square_address_id.id)
-            general_dic['location']['address'] = {}
-            if address.address_line_1:
-                general_dic['location']['address']['address_line_1'] = address.address_line_1
-            if address.address_line_2:
-                general_dic['location']['address']['address_line_2'] = address.address_line_2
-            if address.address_line_3:
-                general_dic['location']['address']['address_line_3'] = address.address_line_3
-            if address.administrative_district_level_1:
-                general_dic['location']['address']['administrative_district_level_1'] = address.administrative_district_level_1
-            if address.administrative_district_level_2:
-                general_dic['location']['address']['administrative_district_level_2'] = address.administrative_district_level_2
-            if address.administrative_district_level_3:
-                general_dic['location']['address']['administrative_district_level_3'] = address.administrative_district_level_3
-            if address.country:
-                general_dic['location']['address']['country'] = address.country
-            if address.first_name:
-                general_dic['location']['address']['first_name'] = address.first_name
-            if address.last_name:
-                general_dic['location']['address']['last_name'] = address.last_name
-            if address.locality:
-                general_dic['location']['address']['locality'] = address.locality
-            if address.organization:
-                general_dic['location']['address']['organization'] = address.organization
-            if address.postal_code:
-                general_dic['location']['address']['postal_code'] = address.postal_code
-            if address.sublocality:
-                general_dic['location']['address']['sublocality'] = address.sublocality
-            if address.sublocality2:
-                general_dic['location']['address']['sublocality_2'] = address.sublocality2
-            if address.sublocality3:
-                general_dic['location']['address']['sublocality_3'] = address.sublocality3
+        else:
+            address = False
+
+        general_dic = {
+            'location': {
+                'business_email': odoo_location.business_email if odoo_location.business_email else None,
+                'business_name': odoo_location.business_name if odoo_location.business_name else None,
+                'description': odoo_location.description if odoo_location.description else None,
+                'facebook_url': odoo_location.facebook_url if odoo_location.facebook_url else None,
+                'instagram_username': odoo_location.instagram_username if odoo_location.instagram_username else None,
+                'language_code': odoo_location.language_code if odoo_location.language_code else None,
+                'mcc': odoo_location.mcc if odoo_location.mcc else None,
+                'name': odoo_location.name if odoo_location.name else None,
+                'phone_number': odoo_location.phone_number if odoo_location.phone_number else None,
+                'status': odoo_location.status if odoo_location.status else None,
+                'timezone': odoo_location.timezone if odoo_location.timezone else None,
+                'twitter_username': odoo_location.twitter_username if odoo_location.twitter_username else None,
+                'type': odoo_location.type if odoo_location.type else None,
+                'website_url': odoo_location.website_url if odoo_location.website_url else None,
+                'address': {
+                    'address_line_1': address.address_line_1 if address.address_line_1 else None,
+                    'address_line_2': address.address_line_2 if address.address_line_2 else None,
+                    'address_line_3': address.address_line_3 if address.address_line_3 else None,
+                    'administrative_district_level_1': address.administrative_district_level_1 if address.administrative_district_level_1 else None,
+                    'administrative_district_level_2': address.administrative_district_level_2 if address.administrative_district_level_2 else None,
+                    'administrative_district_level_3': address.administrative_district_level_3 if address.administrative_district_level_3 else None,
+                    'country': address.country if address.country else None,
+                    'first_name': address.first_name if address.first_name else None,
+                    'last_name': address.last_name if address.last_name else None,
+                    'locality': address.locality if address.locality else None,
+                    'organization': address.organization if address.organization else None,
+                    'postal_code': address.postal_code if address.postal_code else None,
+                    'sublocality': address.sublocality if address.sublocality else None,
+                    'sublocality_2': address.sublocality2 if address.sublocality2 else None,
+                    'sublocality_3': address.sublocality3 if address.sublocality3 else None,
+                } if address else None,
+            }
+        }
 
         if odoo_location.square_location_id:
             square_location_id = odoo_location.square_location_id
@@ -300,6 +222,84 @@ class TdtQueue(models.Model):
         }
         return dic
 
+    def _parse_general_order_to_odoo(self, general_order):
+
+        state = None
+        if 'state' in general_order:
+            if general_order['state'] == 'OPEN':
+                state = 'draft'
+            if general_order['state'] == 'COMPLETED':
+                state = 'done'
+            if general_order['state'] == 'CANCELED':
+                state = 'cancel'
+
+
+        odoo_order_dict = {
+            'state': state,
+            'square_location_id': general_order['location_id'],
+            'square_order_id': general_order['id'],
+            'lines': [],
+            'session_id': self.env['pos.session'].search([('state', '=', 'opened')], limit = 1).id,
+            'amount_tax': general_order['total_tax_money']['amount'] / 100,
+            'amount_total': general_order['total_money']['amount'] / 100,
+            'amount_paid': 0,
+            'amount_return': 0,
+        }
+        if 'line_items' in general_order:
+            for line in general_order['line_items']:
+                discount_percentage = 0
+                if line['gross_sales_money']['amount'] != 0:
+                    discount_percentage = (line['total_discount_money']['amount'] * 100) / line['gross_sales_money']['amount']
+                new_order_line = {
+                    'square_catalog_object_id': line['catalog_object_id'] if 'catalog_object_id' in line else None,
+                    'product_id' : 119, #self.env['product.product'].search([('square_item_id', '=', line['catalog_object_id'])]).id if 'catalog_object_id' in line else 1,
+                    'name': line['name'] if 'name' in line else None,
+                    'qty': line['quantity'],
+                    'discount': discount_percentage,
+                    'price_subtotal': line['gross_sales_money']['amount'] / 100,
+                    'price_subtotal_incl': line['gross_sales_money']['amount'] / 100,
+
+                }
+                odoo_order_dict['lines'].append((0,0,new_order_line))
+
+        return odoo_order_dict
+
+    def _parse_general_item_to_odoo(self, general_item):
+
+        odoo_item_dict = {
+            'name': general_item['item_data']['name'],
+            'square_item_id': general_item['id'],
+            'list_price': 0,
+            'description': general_item['description'] if 'description' in general_item else None,
+        }
+        if 'category_id' in general_item['item_data']:
+            odoo_item_dict['categ_id'] = self.env['product.category'].search([('square_category_id', '=', general_item['item_data']['category_id'])], limit = 1).id
+        else:
+            empty_categ = self.env['product.category'].search([('name', '=', 'NO CATEGORY')])
+            if not empty_categ.id:
+                empty_categ = self.env['product.category'].create({'name': 'NO CATEGORY'})
+            odoo_item_dict['categ_id'] = empty_categ.id
+
+        return odoo_item_dict
+
+    def _parse_general_category_to_odoo(self, general_category):
+        odoo_category = {
+            'square_category_id': general_category['id'],
+            'name': general_category['category_data']['name']
+        }
+        return odoo_category
+
+    def _parse_general_item_variation_to_odoo(self, item_variation):
+        odoo_item_variation = {
+            'square_item_id': item_variation['id'],
+            'is_product_variant': True,
+            'name': item_variation['item_variation_data']['name'],
+            'list_price': item_variation['item_variation_data']['price_money']['amount'],
+            'currency_id': self.env['res.currency'].search([('name', '=', item_variation['item_variation_data']['price_money']['currency'])], limit = 1).id,
+            'product_variant_id': self.env['product.product'].search([('square_item_id', '=', item_variation['item_variation_data']['item_id'])]).id
+        }
+        return odoo_item_variation
+
     def _active_cron_task(self):
 
         connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
@@ -313,7 +313,7 @@ class TdtQueue(models.Model):
         else:
             while result[0].message_count >= 0:
                 parsed_message = json.loads(result[2])
-                if 'kay' in parsed_message and parsed_message['key'] != 'odoo':
+                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
                     if 'type' in parsed_message and parsed_message['type'] == 'customer':
                         dict = self._parse_general_customer_to_odoo(parsed_message['data']) #self._parse_general_dic_to_odoo(parsed_message)
                         partner_square_id = self.env['res.partner'].search([('square_id', '=', dict['square_id'])])
@@ -349,7 +349,7 @@ class TdtQueue(models.Model):
         tzu = timezone(self.env.user.tz)
         tz = timezone('UTC')
         last_execution_date = tz.localize(self.env['ir.cron'].browse(21).lastcall).astimezone(tzu)
-        modified_customers = self.env['res.partner'].search([('write_date', '>=', last_execution_date)])
+        modified_customers = self.env['res.partner'].search([('create_date', '>=', '2021-02-02 13:36:45.990092')])
         for cust in modified_customers:
             dict = self._parse_odoo_customer_to_general(cust)
             message = json.dumps(dict)
@@ -454,10 +454,118 @@ class TdtQueue(models.Model):
         channel.close()
         connection.close()
 
+    def _get_from_queue_orders(self):
+
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        channel = connection.channel()
+
+        result = channel.basic_get('odoo_queue', auto_ack=True)
+
+        if None in result:
+            channel.close()
+            connection.close()
+        else:
+            while result[0].message_count >= 0:
+                parsed_message = json.loads(result[2])
+                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
+                    if 'type' in parsed_message and parsed_message['type'] == 'order':
+                        order_square_id = self.env['pos.order'].search([('square_order_id', '=', parsed_message['data']['id'])])
+                        dict = self._parse_general_order_to_odoo(parsed_message['data'])
+                        if order_square_id:
+                            order_square_id.update(dict)
+                        else:
+                            new_location = self.env['pos.order'].create(dict)
+                            self.env.cr.commit()
+                if result[0].message_count == 0:
+                    break
+                result = channel.basic_get('odoo_queue', auto_ack=True)
+            channel.close()
+            connection.close()
+
+    def _get_from_queue_items(self):
+
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        channel = connection.channel()
+
+        result = channel.basic_get('odoo_queue', auto_ack=True)
+
+        if None in result:
+            channel.close()
+            connection.close()
+        else:
+            while result[0].message_count >= 0:
+                parsed_message = json.loads(result[2])
+                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
+
+                    if 'type' in parsed_message and parsed_message['type'] == 'item':
+                        dict = self._parse_general_item_to_odoo(parsed_message['data'])
+                        item_square_id = self.env['product.product'].search([('square_item_id', '=', dict['square_item_id'])])
+                        parent_name = parsed_message['data']['item_data']['name']
+                        if item_square_id:
+                            item_square_id.update(dict)
+                        else:
+                            item_square_id = self.env['product.product'].create(dict)
+
+                        for variation in parsed_message['data']['item_data']['variations']:
+                            variation_in_odoo = self.env['product.product'].search([('square_item_id', '=', variation['id'])])
+                            variation_dict = self._parse_general_item_variation_to_odoo(variation)
+                            if variation_in_odoo:
+                                variation_in_odoo.update(variation_dict)
+                            else:
+                                if variation_dict['name'] != 'Regular111':
+                                    variation_in_odoo = self.env['product.product'].create(variation_dict)
+                                    variation_in_odoo.write({'combination_indices': parent_name + '_' + variation_in_odoo.name})
+                                    item_square_id.write({
+                                            'product_variant_ids': [(4, variation_in_odoo.id, 0)],
+                                        })
+                                else:
+                                    item_square_id.write({'list_price': variation_dict['list_price'], 'currency_id': variation_dict['currency_id'], 'square_item_id': variation_dict['square_item_id']})
+
+                    if 'type' in parsed_message and parsed_message['type'] == 'category':
+                        dict = self._parse_general_category_to_odoo(parsed_message['data'])
+                        category_square_id = self.env['product.category'].search([('square_category_id', '=', dict['square_category_id'])])
+                        if category_square_id:
+                            category_square_id.update(dict)
+                        else:
+                            new_category = self.env['product.category'].create(dict)
+
+                if result[0].message_count == 0:
+                    break
+                result = channel.basic_get('odoo_queue', auto_ack=True)
+            channel.close()
+            connection.close()
+
     def _testing(self):
-        print('sfsfs')
-        self.env['stock.warehouse'].create({'name': 'Test 03',
-                                            'code':'Test3' ,
-                                            'square_address_id': 5,
-                                            'business_email': 'test03@test.com',
-                                            'phone_number': '1234567890',})
+        self.env['res.partner'].create({
+            'street': 'Av siempre viva',
+            'street2': 'elm st',
+            'city': 'Montevideo',
+            'zip': '11200',
+            'company_name': 'AN orgAnization',
+            'email': 'myemail@testing.com',
+            'name': 'F Mangold',
+            'display_name': 'Fernando',
+            'comment': 'This is my coment, hope it works!',
+            'phone': '1234567890',
+            'country_id': 233,
+            'state_id': 13,
+        })
+        self.env['stock.warehouse'].create({'name': 'Test9',
+                                            'code':'Test9' ,
+                                            'square_address_id': 2,
+                                            'business_email': 'test5@test.com',
+                                            'phone_number': '9999999999',
+                                            'twitter_username': 'username',
+                                            'square_warehouse': True,})
+
+        # self.env['account.account'].create({
+        #     'name': 'account1',
+        #     'code': 'acc1',
+        #     'user_type_id': 3
+        #
+        # })
+        # self.env['pos.payment.method'].create({
+        #     'name': 'Efectivo1',
+        #     'receivable_account_id': 5
+        # })
+

@@ -22,5 +22,5 @@ class PosLocation(models.Model):
     twitter_username = fields.Char(string="twitter username")
     type = fields.Char(string="type of location")
     website_url = fields.Char(string="website")
-    currency = fields.Char(string="currency")
+    currency_id = fields.Many2one(comodel_name="res.currency", string="currency")
     square_warehouse = fields.Boolean(string="Warehouse managed in square")

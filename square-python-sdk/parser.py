@@ -93,3 +93,44 @@ class Parser:
         }
 
         return general_location
+
+    @staticmethod
+    def _parse_square_order_to_general(square_order):
+        general_order = {
+            'key': 'square',
+            'type': 'order',
+            'data': square_order
+        }
+
+        return general_order
+
+    @staticmethod
+    def _parse_square_item_to_general(square_item):
+        general_item = {
+            'key': 'square',
+            'type': 'item',
+            'data': square_item
+        }
+
+        return general_item
+
+    @staticmethod
+    def _parse_square_category_to_general(square_category):
+        general_category = {
+            'key': 'square',
+            'type': 'category',
+            'data': square_category
+        }
+
+        return general_category
+
+    @staticmethod
+    def _parse_square_item_variation_to_general(square_item_variation):
+        general_item_variation = {
+            'key': 'square',
+            'type': 'item_variation',
+            'data': square_item_variation
+        }
+
+        return general_item_variation
+

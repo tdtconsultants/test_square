@@ -13,21 +13,6 @@ result = locations_api.list_locations()
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 channel = connection.channel()
 
-
-def _find_location_by_description(description):
-    locations = locations_api.list_locations()
-    found = False
-    i = 0
-    location = 'Not found'
-    while not found and i < len(locations.body['locations']):
-        if 'description' in locations.body['locations'][i] and locations.body['locations'][i]['description'] == description:
-            found = True
-            location = locations.body['locations'][i]
-        else:
-            i = i + 1
-    return location
-
-
 result = channel.basic_get('square_queue', auto_ack=True)
 if None in result:
     channel.close()
