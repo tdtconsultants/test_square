@@ -7,4 +7,3 @@ class OrderLineItems(models.Model):
     _inherit = 'pos.order.line'
 
     square_catalog_object_id = fields.Char(string="id item square")
-

@@ -244,25 +244,39 @@ class TdtQueue(models.Model):
             'amount_total': general_order['total_money']['amount'] / 100,
             'amount_paid': 0,
             'amount_return': 0,
+            'currency_id': self.env['res.currency'].search([('name', '=', general_order['total_money']['currency'])]).id,
+            'is_tipped': True if general_order['total_tip_money']['amount'] != 0 else False,
+            'tip_amount': general_order['total_tip_money']['amount'],
         }
+
+        return odoo_order_dict
+
+    def _get_order_lines(self, general_order):
+        lines = []
         if 'line_items' in general_order:
             for line in general_order['line_items']:
                 discount_percentage = 0
                 if line['gross_sales_money']['amount'] != 0:
                     discount_percentage = (line['total_discount_money']['amount'] * 100) / line['gross_sales_money']['amount']
+
+                product_template = self.env['product.product'].search([('square_item_id', '=', line['catalog_object_id'])]).product_tmpl_id
+                product_line_name = self.env['product.template'].search([('id', '=', product_template.id)]).name
+                product = self.env['product.product'].search([('square_item_id', '=', line['catalog_object_id'])])
+
                 new_order_line = {
                     'square_catalog_object_id': line['catalog_object_id'] if 'catalog_object_id' in line else None,
-                    'product_id' : 119, #self.env['product.product'].search([('square_item_id', '=', line['catalog_object_id'])]).id if 'catalog_object_id' in line else 1,
+                    'product_id' : product.id if 'catalog_object_id' in line else 1,
                     'name': line['name'] if 'name' in line else None,
                     'qty': line['quantity'],
                     'discount': discount_percentage,
-                    'price_subtotal': line['gross_sales_money']['amount'] / 100,
-                    'price_subtotal_incl': line['gross_sales_money']['amount'] / 100,
-
+                    'price_subtotal': line['variation_total_price_money']['amount'] / 100,
+                    'price_subtotal_incl': line['total_money']['amount'] / 100,
+                    'currency_id': self.env['res.currency'].search([('name', '=', line['total_money']['currency'])]).id,
+                    'full_product_name': product_line_name if 'catalog_object_id' in line else 1,
+                    'price_unit': product.list_price
                 }
-                odoo_order_dict['lines'].append((0,0,new_order_line))
-
-        return odoo_order_dict
+                lines.append(new_order_line)
+        return lines
 
     def _parse_general_item_to_odoo(self, general_item):
 
@@ -271,13 +285,21 @@ class TdtQueue(models.Model):
             'square_item_id': general_item['id'],
             'list_price': 0,
             'description': general_item['description'] if 'description' in general_item else None,
+            'available_in_pos': True
         }
+
+        empty_categ = self.env['product.category'].search([('name', '=', 'NO CATEGORY')])
+        if not empty_categ.id:
+            empty_categ = self.env['product.category'].create({'name': 'NO CATEGORY'})
+        odoo_item_dict['categ_id'] = empty_categ.id
+
         if 'category_id' in general_item['item_data']:
-            odoo_item_dict['categ_id'] = self.env['product.category'].search([('square_category_id', '=', general_item['item_data']['category_id'])], limit = 1).id
+            categ = self.env['product.category'].search([('square_category_id', '=', general_item['item_data']['category_id'])], limit = 1)
+            if categ:
+                odoo_item_dict['categ_id'] = categ.id
+            else:
+                odoo_item_dict['categ_id'] = empty_categ.id
         else:
-            empty_categ = self.env['product.category'].search([('name', '=', 'NO CATEGORY')])
-            if not empty_categ.id:
-                empty_categ = self.env['product.category'].create({'name': 'NO CATEGORY'})
             odoo_item_dict['categ_id'] = empty_categ.id
 
         return odoo_item_dict
@@ -293,15 +315,15 @@ class TdtQueue(models.Model):
         odoo_item_variation = {
             'square_item_id': item_variation['id'],
             'is_product_variant': True,
-            'name': item_variation['item_variation_data']['name'],
-            'list_price': item_variation['item_variation_data']['price_money']['amount'],
+            'name': self.env['product.product'].search([('square_item_id', '=', item_variation['item_variation_data']['item_id'])]).name + '_' + item_variation['item_variation_data']['name'],
+            'list_price': item_variation['item_variation_data']['price_money']['amount'] / 100,
             'currency_id': self.env['res.currency'].search([('name', '=', item_variation['item_variation_data']['price_money']['currency'])], limit = 1).id,
-            'product_variant_id': self.env['product.product'].search([('square_item_id', '=', item_variation['item_variation_data']['item_id'])]).id
+            'product_variant_id': self.env['product.product'].search([('square_item_id', '=', item_variation['item_variation_data']['item_id'])]).id,
+            'available_in_pos': True,
         }
         return odoo_item_variation
 
-    def _active_cron_task(self):
-
+    def _get_messages_from_square(self):
         connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
         channel = connection.channel()
 
@@ -313,9 +335,11 @@ class TdtQueue(models.Model):
         else:
             while result[0].message_count >= 0:
                 parsed_message = json.loads(result[2])
+
                 if 'key' in parsed_message and parsed_message['key'] != 'odoo':
+
                     if 'type' in parsed_message and parsed_message['type'] == 'customer':
-                        dict = self._parse_general_customer_to_odoo(parsed_message['data']) #self._parse_general_dic_to_odoo(parsed_message)
+                        dict = self._parse_general_customer_to_odoo(parsed_message['data'])  # self._parse_general_dic_to_odoo(parsed_message)
                         partner_square_id = self.env['res.partner'].search([('square_id', '=', dict['square_id'])])
                         if 'reference_id' in parsed_message['data']:
                             partner_odoo_id = self.env['res.partner'].search([('id', '=', parsed_message['data']['reference_id'])])
@@ -323,12 +347,12 @@ class TdtQueue(models.Model):
                             partner_odoo_id = None
 
                         if partner_square_id:
-                            #Si lo encuentra por square_id significa que odoo ya recibio informacion de este customer de square, por lo tanto este cliente en square ya tiene en el campo reference_id la id de odoo
+                            # Si lo encuentra por square_id significa que odoo ya recibio informacion de este customer de square, por lo tanto este cliente en square ya tiene en el campo reference_id la id de odoo
                             partner_square_id.update(dict)
                         elif partner_odoo_id:
-                            #Si no lo encuentra por square_id pero lo encuentra por reference_id, significa que odoo creo este cliente y lo envio a square, square lo creo en su sistema y en reference_id puso la id de odoo.
-                            #Lo que hay que hacer es agregar la referencia en square_id
-                            #Pueden haber mas cambios ademas del square id
+                            # Si no lo encuentra por square_id pero lo encuentra por reference_id, significa que odoo creo este cliente y lo envio a square, square lo creo en su sistema y en reference_id puso la id de odoo.
+                            # Lo que hay que hacer es agregar la referencia en square_id
+                            # Pueden haber mas cambios ademas del square id
                             partner_odoo_id.update(dict)
                         else:
                             # Si no encuentra por square_id ni por id de odoo significa que esta es la primera vez que odoo sabe de este cliente
@@ -337,40 +361,7 @@ class TdtQueue(models.Model):
                             response = self._parse_odoo_customer_to_general(new_customer)
                             message = json.dumps(response)
                             channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
-                if result[0].message_count == 0:
-                    break
-                result = channel.basic_get('odoo_queue', auto_ack=True)
-            channel.close()
-            connection.close()
 
-    def _active_cron_sender_task(self):
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-        channel = connection.channel()
-        tzu = timezone(self.env.user.tz)
-        tz = timezone('UTC')
-        last_execution_date = tz.localize(self.env['ir.cron'].browse(21).lastcall).astimezone(tzu)
-        modified_customers = self.env['res.partner'].search([('create_date', '>=', '2021-02-02 13:36:45.990092')])
-        for cust in modified_customers:
-            dict = self._parse_odoo_customer_to_general(cust)
-            message = json.dumps(dict)
-            channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
-        channel.close()
-        connection.close()
-
-    def _get_from_queue_payments(self):
-
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-        channel = connection.channel()
-
-        result = channel.basic_get('odoo_queue', auto_ack=True)
-
-        if None in result:
-            channel.close()
-            connection.close()
-        else:
-            while result[0].message_count >= 0:
-                parsed_message = json.loads(result[2])
-                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
                     if 'type' in parsed_message and parsed_message['type'] == 'payment':
                         dict = self._parse_general_payment_to_odoo(parsed_message['data'])  # self._parse_general_dic_to_odoo(parsed_message)
                         payment_square_id = self.env['pos.payment'].search([('payment_square_id', '=', dict['payment_square_id'])])
@@ -392,26 +383,7 @@ class TdtQueue(models.Model):
                             parsed_message['key'] = 'odoo'
                             message = json.dumps(parsed_message)
                             channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
-                if result[0].message_count == 0:
-                    break
-                result = channel.basic_get('odoo_queue', auto_ack=True)
-            channel.close()
-            connection.close()
 
-    def _get_from_queue_locations(self):
-
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-        channel = connection.channel()
-
-        result = channel.basic_get('odoo_queue', auto_ack=True)
-
-        if None in result:
-            channel.close()
-            connection.close()
-        else:
-            while result[0].message_count >= 0:
-                parsed_message = json.loads(result[2])
-                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
                     if 'type' in parsed_message and parsed_message['type'] == 'location':
                         dict = self._parse_general_location_to_odoo(parsed_message['data'])
                         location_square_id = self.env['stock.warehouse'].search([('square_location_id', '=', dict['square_location_id'])])
@@ -421,7 +393,7 @@ class TdtQueue(models.Model):
                         else:
                             location_odoo_id = None
 
-                        if location_square_id.warehouse_count > 0:
+                        if location_parsed_message['data'].square_id.warehouse_count > 0:
                             # Si lo encuentra por square_id significa que odoo ya recibio informacion de este customer de square, por lo tanto este cliente en square ya tiene en el campo reference_id la id de odoo
                             location_square_id.update(dict)
                         elif location_odoo_id:
@@ -434,68 +406,24 @@ class TdtQueue(models.Model):
                             response = self._parse_odoo_location_to_general(new_location)
                             message = json.dumps(response)
                             channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
-                if result[0].message_count == 0:
-                    break
-                result = channel.basic_get('odoo_queue', auto_ack=True)
-            channel.close()
-            connection.close()
 
-    def _send_locations(self):
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-        channel = connection.channel()
-        tzu = timezone(self.env.user.tz)
-        tz = timezone('UTC')
-        last_execution_date = tz.localize(self.env['ir.cron'].browse(21).lastcall).astimezone(tzu)
-        modified_locations = self.env['stock.warehouse'].search([('write_date', '>=', last_execution_date)])
-        for loc in modified_locations:
-            dict = self._parse_odoo_location_to_general(loc)
-            message = json.dumps(dict)
-            channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
-        channel.close()
-        connection.close()
-
-    def _get_from_queue_orders(self):
-
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-        channel = connection.channel()
-
-        result = channel.basic_get('odoo_queue', auto_ack=True)
-
-        if None in result:
-            channel.close()
-            connection.close()
-        else:
-            while result[0].message_count >= 0:
-                parsed_message = json.loads(result[2])
-                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
                     if 'type' in parsed_message and parsed_message['type'] == 'order':
                         order_square_id = self.env['pos.order'].search([('square_order_id', '=', parsed_message['data']['id'])])
                         dict = self._parse_general_order_to_odoo(parsed_message['data'])
+                        lines = self._get_order_lines(parsed_message['data'])
                         if order_square_id:
+                            for order_line in lines:
+                                existing_line = self.env['pos.order.line'].search([('square_catalog_object_id', '=', order_line['square_catalog_object_id']), ('order_id', '=', order_square_id.id)])
+                                if existing_line:
+                                    existing_line.update(order_line)
+                                else:
+                                    dict['lines'].append((0,0,order_line))
                             order_square_id.update(dict)
                         else:
-                            new_location = self.env['pos.order'].create(dict)
+                            for new_order_line in lines:
+                                dict['lines'].append((0,0,new_order_line))
+                            new_order = self.env['pos.order'].create(dict)
                             self.env.cr.commit()
-                if result[0].message_count == 0:
-                    break
-                result = channel.basic_get('odoo_queue', auto_ack=True)
-            channel.close()
-            connection.close()
-
-    def _get_from_queue_items(self):
-
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-        channel = connection.channel()
-
-        result = channel.basic_get('odoo_queue', auto_ack=True)
-
-        if None in result:
-            channel.close()
-            connection.close()
-        else:
-            while result[0].message_count >= 0:
-                parsed_message = json.loads(result[2])
-                if 'key' in parsed_message and parsed_message['key'] != 'odoo':
 
                     if 'type' in parsed_message and parsed_message['type'] == 'item':
                         dict = self._parse_general_item_to_odoo(parsed_message['data'])
@@ -512,14 +440,15 @@ class TdtQueue(models.Model):
                             if variation_in_odoo:
                                 variation_in_odoo.update(variation_dict)
                             else:
-                                if variation_dict['name'] != 'Regular111':
+                                if variation['item_variation_data']['name'] != 'Regular':
                                     variation_in_odoo = self.env['product.product'].create(variation_dict)
                                     variation_in_odoo.write({'combination_indices': parent_name + '_' + variation_in_odoo.name})
                                     item_square_id.write({
-                                            'product_variant_ids': [(4, variation_in_odoo.id, 0)],
-                                        })
+                                        'product_variant_ids': [(4, variation_in_odoo.id, 0)],
+                                    })
                                 else:
-                                    item_square_id.write({'list_price': variation_dict['list_price'], 'currency_id': variation_dict['currency_id'], 'square_item_id': variation_dict['square_item_id']})
+                                    item_square_id.write({'list_price': variation_dict['list_price'], 'currency_id': variation_dict['currency_id'],
+                                                          'combination_indices': parent_name + '_' + variation['item_variation_data']['name']})
 
                     if 'type' in parsed_message and parsed_message['type'] == 'category':
                         dict = self._parse_general_category_to_odoo(parsed_message['data'])
