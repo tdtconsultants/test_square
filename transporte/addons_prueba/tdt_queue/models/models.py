@@ -6,6 +6,7 @@ import sys
 import json
 from pytz import timezone
 import datetime
+import random
 
 class TdtQueue(models.Model):
     _name = "tdt_queue"
@@ -247,6 +248,8 @@ class TdtQueue(models.Model):
             'currency_id': self.env['res.currency'].search([('name', '=', general_order['total_money']['currency'])]).id,
             'is_tipped': True if general_order['total_tip_money']['amount'] != 0 else False,
             'tip_amount': general_order['total_tip_money']['amount'],
+            'company_id': 1,
+            'pricelist_id': 1,
         }
 
         return odoo_order_dict
@@ -273,36 +276,43 @@ class TdtQueue(models.Model):
                     'price_subtotal_incl': line['total_money']['amount'] / 100,
                     'currency_id': self.env['res.currency'].search([('name', '=', line['total_money']['currency'])]).id,
                     'full_product_name': product_line_name if 'catalog_object_id' in line else 1,
-                    'price_unit': product.list_price
+                    'price_unit': product_template.list_price
                 }
                 lines.append(new_order_line)
         return lines
 
     def _parse_general_item_to_odoo(self, general_item):
 
-        odoo_item_dict = {
-            'name': general_item['item_data']['name'],
-            'square_item_id': general_item['id'],
-            'list_price': 0,
-            'description': general_item['description'] if 'description' in general_item else None,
-            'available_in_pos': True
-        }
+        variations = []
 
         empty_categ = self.env['product.category'].search([('name', '=', 'NO CATEGORY')])
         if not empty_categ.id:
             empty_categ = self.env['product.category'].create({'name': 'NO CATEGORY'})
-        odoo_item_dict['categ_id'] = empty_categ.id
 
-        if 'category_id' in general_item['item_data']:
-            categ = self.env['product.category'].search([('square_category_id', '=', general_item['item_data']['category_id'])], limit = 1)
-            if categ:
-                odoo_item_dict['categ_id'] = categ.id
+        for item_variation in general_item['item_data']['variations']:
+
+            odoo_item_dict = {
+                'name': general_item['item_data']['name'] + '_' + item_variation['item_variation_data']['name'],
+                'description': general_item['description'] if 'description' in general_item else None,
+                'available_in_pos': True,
+                'square_item_id': item_variation['id'],
+                'list_price': item_variation['item_variation_data']['price_money']['amount'] / 100,
+                'currency_id': self.env['res.currency'].search([('name', '=', item_variation['item_variation_data']['price_money']['currency'])], limit = 1).id,
+                'combination_indices': general_item['item_data']['name'] + '_' + item_variation['item_variation_data']['name'],
+                'type': 'product'
+            }
+
+            if 'category_id' in general_item['item_data']:
+                categ = self.env['product.category'].search([('square_category_id', '=', general_item['item_data']['category_id'])], limit = 1)
+                if categ:
+                    odoo_item_dict['categ_id'] = categ.id
+                else:
+                    odoo_item_dict['categ_id'] = empty_categ.id
             else:
                 odoo_item_dict['categ_id'] = empty_categ.id
-        else:
-            odoo_item_dict['categ_id'] = empty_categ.id
+            variations.append(odoo_item_dict)
 
-        return odoo_item_dict
+        return variations
 
     def _parse_general_category_to_odoo(self, general_category):
         odoo_category = {
@@ -310,18 +320,6 @@ class TdtQueue(models.Model):
             'name': general_category['category_data']['name']
         }
         return odoo_category
-
-    def _parse_general_item_variation_to_odoo(self, item_variation):
-        odoo_item_variation = {
-            'square_item_id': item_variation['id'],
-            'is_product_variant': True,
-            'name': self.env['product.product'].search([('square_item_id', '=', item_variation['item_variation_data']['item_id'])]).name + '_' + item_variation['item_variation_data']['name'],
-            'list_price': item_variation['item_variation_data']['price_money']['amount'] / 100,
-            'currency_id': self.env['res.currency'].search([('name', '=', item_variation['item_variation_data']['price_money']['currency'])], limit = 1).id,
-            'product_variant_id': self.env['product.product'].search([('square_item_id', '=', item_variation['item_variation_data']['item_id'])]).id,
-            'available_in_pos': True,
-        }
-        return odoo_item_variation
 
     def _get_messages_from_square(self):
         connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
@@ -363,7 +361,7 @@ class TdtQueue(models.Model):
                             channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
 
                     if 'type' in parsed_message and parsed_message['type'] == 'payment':
-                        dict = self._parse_general_payment_to_odoo(parsed_message['data'])  # self._parse_general_dic_to_odoo(parsed_message)
+                        dict = self._parse_general_payment_to_odoo(parsed_message['data'])
                         payment_square_id = self.env['pos.payment'].search([('payment_square_id', '=', dict['payment_square_id'])])
                         if 'reference_id' in parsed_message['data']:
                             payment_odoo_id = self.env['pos.payment'].search([('id', '=', parsed_message['data']['reference_id'])])
@@ -393,7 +391,7 @@ class TdtQueue(models.Model):
                         else:
                             location_odoo_id = None
 
-                        if location_parsed_message['data'].square_id.warehouse_count > 0:
+                        if location_square_id:
                             # Si lo encuentra por square_id significa que odoo ya recibio informacion de este customer de square, por lo tanto este cliente en square ya tiene en el campo reference_id la id de odoo
                             location_square_id.update(dict)
                         elif location_odoo_id:
@@ -426,29 +424,15 @@ class TdtQueue(models.Model):
                             self.env.cr.commit()
 
                     if 'type' in parsed_message and parsed_message['type'] == 'item':
-                        dict = self._parse_general_item_to_odoo(parsed_message['data'])
-                        item_square_id = self.env['product.product'].search([('square_item_id', '=', dict['square_item_id'])])
-                        parent_name = parsed_message['data']['item_data']['name']
-                        if item_square_id:
-                            item_square_id.update(dict)
-                        else:
-                            item_square_id = self.env['product.product'].create(dict)
-
-                        for variation in parsed_message['data']['item_data']['variations']:
-                            variation_in_odoo = self.env['product.product'].search([('square_item_id', '=', variation['id'])])
-                            variation_dict = self._parse_general_item_variation_to_odoo(variation)
-                            if variation_in_odoo:
-                                variation_in_odoo.update(variation_dict)
+                        variations = self._parse_general_item_to_odoo(parsed_message['data'])
+                        for variation in variations:
+                            item_square_id = self.env['product.product'].search([('square_item_id', '=', variation['square_item_id'])])
+                            combination_indices = variation['name']
+                            variation['combination_indices'] = combination_indices
+                            if item_square_id:
+                                item_square_id.update(variation)
                             else:
-                                if variation['item_variation_data']['name'] != 'Regular':
-                                    variation_in_odoo = self.env['product.product'].create(variation_dict)
-                                    variation_in_odoo.write({'combination_indices': parent_name + '_' + variation_in_odoo.name})
-                                    item_square_id.write({
-                                        'product_variant_ids': [(4, variation_in_odoo.id, 0)],
-                                    })
-                                else:
-                                    item_square_id.write({'list_price': variation_dict['list_price'], 'currency_id': variation_dict['currency_id'],
-                                                          'combination_indices': parent_name + '_' + variation['item_variation_data']['name']})
+                                item_square_id = self.env['product.product'].create(variation)
 
                     if 'type' in parsed_message and parsed_message['type'] == 'category':
                         dict = self._parse_general_category_to_odoo(parsed_message['data'])
@@ -457,6 +441,41 @@ class TdtQueue(models.Model):
                             category_square_id.update(dict)
                         else:
                             new_category = self.env['product.category'].create(dict)
+
+                    if 'type' in parsed_message and parsed_message['type'] == 'inventory':
+                        inventory_line = parsed_message['data']
+                        warehouse = self.env['stock.warehouse'].search([('square_location_id', '=', inventory_line['location_id'])])
+                        location_view = self.env['stock.location'].search([('id', '=', warehouse.view_location_id.id)])
+                        location_stock_name = location_view.name + '/Stock'
+                        location_stock = self.env['stock.location'].search([('complete_name', '=', location_stock_name), ('location_id', '=', location_view.id)])
+                        item = self.env['product.product'].search([('square_item_id', '=', inventory_line['catalog_object_id'])])
+                        square_inv = self.env['stock.inventory'].create({'name': 'Square inventory'})
+                        square_inv.action_start()
+                        #self.env.cr.commit()
+                        line_in_odoo = False
+                        i = 0
+                        while not line_in_odoo and i < len(square_inv.line_ids):
+                            line = square_inv.line_ids[i]
+                            if line.product_id.id == item.id and line.location_id.id == location_stock.id:
+                                if inventory_line['to_state'] == 'IN_STOCK':
+                                    new_qty = line.product_qty + int(inventory_line['quantity'])
+                                else:
+                                    new_qty = line.product_qty - int(inventory_line['quantity'])
+                                line.update({'product_qty': new_qty})
+                                line_in_odoo = True
+                            i = i + 1
+                        if not line_in_odoo:
+                            new_inventory_line = {
+                                'product_id': item.id,
+                                'location_id': location_stock.id,
+                                'product_qty': int(inventory_line['quantity']),
+                                'product_uom_id': 1,
+                                'company_id': 1,
+                                'inventory_id': square_inv.id,
+                            }
+                            self.env['stock.inventory.line'].create(new_inventory_line)
+                        square_inv.action_validate()
+
 
                 if result[0].message_count == 0:
                     break
@@ -497,4 +516,7 @@ class TdtQueue(models.Model):
         #     'name': 'Efectivo1',
         #     'receivable_account_id': 5
         # })
+
+
+
 

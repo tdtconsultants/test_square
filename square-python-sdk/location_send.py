@@ -26,13 +26,13 @@ def _get_locations_created_later_than(date):
     return result
 
 
-locations = _get_locations_created_later_than('2021-02-02T13:00:00Z')
+locations = locations_api.list_locations()
 if locations:
-    message = json.dumps(locations)
+    message = json.dumps(locations.body['locations'])
     if message != '{}':
         i = 0
-        while i < len(locations):
-            parser_dic = Parser._parse_square_location_to_general(locations[i])
+        while i < len(locations.body['locations']):
+            parser_dic = Parser._parse_square_location_to_general(locations.body['locations'][i])
             message = json.dumps(parser_dic)
             channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
             i = i + 1

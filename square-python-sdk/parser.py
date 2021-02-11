@@ -134,3 +134,12 @@ class Parser:
 
         return general_item_variation
 
+    @staticmethod
+    def _parse_inventory_to_general(square_inventory):
+        general_inventory = {
+            'key': 'square',
+            'type': 'inventory',
+            'data': square_inventory
+        }
+        return general_inventory
+

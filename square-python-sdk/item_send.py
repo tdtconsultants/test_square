@@ -12,13 +12,13 @@ catalog_api = client.catalog
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 channel = connection.channel()
 
-# result = catalog_api.list_catalog('','CATEGORY')
-# i = 0
-# while i < len(result.body['objects']):
-#     parser_dic = Parser._parse_square_category_to_general((result.body['objects'][i]))
-#     message = json.dumps(parser_dic)
-#     channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
-#     i = i + 1
+result = catalog_api.list_catalog('','CATEGORY')
+i = 0
+while i < len(result.body['objects']):
+    parser_dic = Parser._parse_square_category_to_general((result.body['objects'][i]))
+    message = json.dumps(parser_dic)
+    channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
+    i = i + 1
 
 result = catalog_api.list_catalog('','ITEM')
 i = 0
@@ -28,9 +28,5 @@ while i < len(result.body['objects']):
     channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
     i = i + 1
 
-# result = catalog_api.retrieve_catalog_object('JZUSEDGOIUB4HXB2NVGLYCTR')
-# parsed_dic = Parser._parse_square_item_to_general((result.body['object']))
-# message = json.dumps(parsed_dic)
-# channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
 channel.close()
 connection.close()
