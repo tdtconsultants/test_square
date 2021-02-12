@@ -9,3 +9,4 @@ from . import orders
 from . import order_line_items
 from . import category
 from . import product
+from . import square_inventory_adjustment_log

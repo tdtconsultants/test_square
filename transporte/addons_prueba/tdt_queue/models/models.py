@@ -443,80 +443,56 @@ class TdtQueue(models.Model):
                             new_category = self.env['product.category'].create(dict)
 
                     if 'type' in parsed_message and parsed_message['type'] == 'inventory':
-                        inventory_line = parsed_message['data']
-                        warehouse = self.env['stock.warehouse'].search([('square_location_id', '=', inventory_line['location_id'])])
-                        location_view = self.env['stock.location'].search([('id', '=', warehouse.view_location_id.id)])
-                        location_stock_name = location_view.name + '/Stock'
-                        location_stock = self.env['stock.location'].search([('complete_name', '=', location_stock_name), ('location_id', '=', location_view.id)])
-                        item = self.env['product.product'].search([('square_item_id', '=', inventory_line['catalog_object_id'])])
-                        square_inv = self.env['stock.inventory'].create({'name': 'Square inventory'})
+                        inventory_adjustment = parsed_message['data']
+                        square_inv = self.env['stock.inventory'].create({'name': 'Square inventory adjustment ' + str(datetime.datetime.now())})
                         square_inv.action_start()
-                        #self.env.cr.commit()
-                        line_in_odoo = False
-                        i = 0
-                        while not line_in_odoo and i < len(square_inv.line_ids):
-                            line = square_inv.line_ids[i]
-                            if line.product_id.id == item.id and line.location_id.id == location_stock.id:
-                                if inventory_line['to_state'] == 'IN_STOCK':
-                                    new_qty = line.product_qty + int(inventory_line['quantity'])
+                        for inventory_line in inventory_adjustment:
+                            for line in inventory_line:
+                                is_adjustment = line['type'] == 'ADJUSTMENT' #si no es adjustment entonces es physical count
+                                if is_adjustment:
+                                    line = line['adjustment']
                                 else:
-                                    new_qty = line.product_qty - int(inventory_line['quantity'])
-                                line.update({'product_qty': new_qty})
-                                line_in_odoo = True
-                            i = i + 1
-                        if not line_in_odoo:
-                            new_inventory_line = {
-                                'product_id': item.id,
-                                'location_id': location_stock.id,
-                                'product_qty': int(inventory_line['quantity']),
-                                'product_uom_id': 1,
-                                'company_id': 1,
-                                'inventory_id': square_inv.id,
-                            }
-                            self.env['stock.inventory.line'].create(new_inventory_line)
-                        square_inv.action_validate()
-
+                                    line = line['physical_count']
+                                is_existing_adjustment = self.env['square_inventory_logs'].search([('square_inventory_adjustment_id', '=', line['id'])]) #verifica si es un adjustment o count ya registrado
+                                if not is_existing_adjustment:
+                                    warehouse = self.env['stock.warehouse'].search([('square_location_id', '=', line['location_id'])])
+                                    location_view = self.env['stock.location'].search([('id', '=', warehouse.view_location_id.id)])
+                                    location_stock_name = location_view.name + '/Stock'
+                                    location_stock = self.env['stock.location'].search([('complete_name', '=', location_stock_name), ('location_id', '=', location_view.id)])
+                                    item = self.env['product.product'].search([('square_item_id', '=', line['catalog_object_id'])])
+                                    line_in_odoo = False
+                                    i = 0
+                                    while not line_in_odoo and i < len(square_inv.line_ids): #Busca si hay un adjustment para ese objeto y ubicacion
+                                        odoo_inventory_line = square_inv.line_ids[i]
+                                        if odoo_inventory_line.product_id.id == item.id and odoo_inventory_line.location_id.id == location_stock.id:
+                                            if is_adjustment: #Si es un ajuste
+                                                if line['to_state'] == 'IN_STOCK':
+                                                    new_qty = odoo_inventory_line.product_qty + int(line['quantity'])
+                                                else:
+                                                    new_qty = odoo_inventory_line.product_qty - int(line['quantity'])
+                                                odoo_inventory_line.update({'product_qty': new_qty})
+                                            else: #Si es un conteo
+                                                odoo_inventory_line.update({'product_qty': line['quantity']})
+                                            line_in_odoo = True
+                                        i = i + 1
+                                    if not line_in_odoo:
+                                        new_inventory_line = {
+                                            'product_id': item.id,
+                                            'location_id': location_stock.id,
+                                            'product_qty': int(line['quantity']),
+                                            'product_uom_id': 1,
+                                            'company_id': 1,
+                                            'inventory_id': square_inv.id,
+                                            'square_inv_line_id': line['id']
+                                        }
+                                        self.env['stock.inventory.line'].create(new_inventory_line)
+                                    self.env['square_inventory_logs'].create({'square_inventory_adjustment_id': line['id']})
+                        square_inv.action_check()
+                        square_inv.write({'state': 'done', 'date': fields.Datetime.now()})
+                        square_inv.post_inventory()
 
                 if result[0].message_count == 0:
                     break
                 result = channel.basic_get('odoo_queue', auto_ack=True)
             channel.close()
             connection.close()
-
-    def _testing(self):
-        self.env['res.partner'].create({
-            'street': 'Av siempre viva',
-            'street2': 'elm st',
-            'city': 'Montevideo',
-            'zip': '11200',
-            'company_name': 'AN orgAnization',
-            'email': 'myemail@testing.com',
-            'name': 'F Mangold',
-            'display_name': 'Fernando',
-            'comment': 'This is my coment, hope it works!',
-            'phone': '1234567890',
-            'country_id': 233,
-            'state_id': 13,
-        })
-        self.env['stock.warehouse'].create({'name': 'Test9',
-                                            'code':'Test9' ,
-                                            'square_address_id': 2,
-                                            'business_email': 'test5@test.com',
-                                            'phone_number': '9999999999',
-                                            'twitter_username': 'username',
-                                            'square_warehouse': True,})
-
-        # self.env['account.account'].create({
-        #     'name': 'account1',
-        #     'code': 'acc1',
-        #     'user_type_id': 3
-        #
-        # })
-        # self.env['pos.payment.method'].create({
-        #     'name': 'Efectivo1',
-        #     'receivable_account_id': 5
-        # })
-
-
-
-

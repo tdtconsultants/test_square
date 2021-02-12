@@ -143,3 +143,12 @@ class Parser:
         }
         return general_inventory
 
+    @staticmethod
+    def _parse_inventory_count_to_general(square_inventory_recount):
+        general_inventory_recount = {
+            'key': 'square',
+            'type': 'inventory_re_count',
+            'data': square_inventory_recount
+        }
+        return general_inventory_recount
+
