@@ -9,3 +9,4 @@ access_pos_order_line_queue,pos.order.line.queue,model_pos_order_line,,1,1,1,0
 access_product_product_queue,product.product.queue,model_product_product,,1,1,1,0
 access_product_category_queue,product.category.queue,model_product_category,,1,1,1,0
 access_square_inventory_logs, tdt_queue.square_inventory_adjustment_log,model_square_inventory_logs,,1,1,1,0
+access_square_inventory, tdt_queue.square_inventory.queue,model_stock_inventory,,1,1,1,0

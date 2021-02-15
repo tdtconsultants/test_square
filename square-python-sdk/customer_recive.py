@@ -10,7 +10,6 @@ client = Client(
 )
 
 customer_api = client.customers
-result = customer_api.list_customers()
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 channel = connection.channel()
 

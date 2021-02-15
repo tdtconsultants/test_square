@@ -321,6 +321,15 @@ class TdtQueue(models.Model):
         }
         return odoo_category
 
+    def _parse_odoo_inv_line_to_general(self, inventory_line):
+        line_dic = {
+            'catalog_object_id': inventory_line.product_id.square_item_id,
+            'location_id': self.env['stock.warehouse'].search([('view_location_id', '=', inventory_line.location_id.location_id.id)]).square_location_id,
+            'quantity': inventory_line.product_qty,
+        }
+
+        return line_dic
+
     def _get_messages_from_square(self):
         connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
         channel = connection.channel()
@@ -483,12 +492,11 @@ class TdtQueue(models.Model):
                                             'product_uom_id': 1,
                                             'company_id': 1,
                                             'inventory_id': square_inv.id,
-                                            'square_inv_line_id': line['id']
                                         }
                                         self.env['stock.inventory.line'].create(new_inventory_line)
                                     self.env['square_inventory_logs'].create({'square_inventory_adjustment_id': line['id']})
                         square_inv.action_check()
-                        square_inv.write({'state': 'done', 'date': fields.Datetime.now()})
+                        square_inv.write({'state': 'done', 'date': fields.Datetime.now(), 'square_inventory_adjustment': True})
                         square_inv.post_inventory()
 
                 if result[0].message_count == 0:
@@ -496,3 +504,29 @@ class TdtQueue(models.Model):
                 result = channel.basic_get('odoo_queue', auto_ack=True)
             channel.close()
             connection.close()
+
+    def _send_inventory_adjustments(self):
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        channel = connection.channel()
+
+        inventory_lines = []
+        square_inv = self.env['stock.inventory'].create({'name': 'Sync to square ' + str(datetime.datetime.now())})
+        square_inv.action_start()
+        primera_linea = square_inv.line_ids[0]
+        i = 0
+        for i in range(len(square_inv.line_ids.ids)):
+            if square_inv.line_ids[i].product_id.square_item_id is not None:
+                parsed_line = self._parse_odoo_inv_line_to_general(square_inv.line_ids[i])
+                inventory_lines.append(parsed_line)
+
+        general_dic = {
+            'data': inventory_lines,
+            'key': 'odoo',
+            'type': 'inventory'
+        }
+        square_inv.action_cancel_draft()
+        square_inv.unlink()
+        message = json.dumps(general_dic)
+        channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
+        channel.close()
+        connection.close()

@@ -10,7 +10,6 @@ client = Client(
 )
 
 locations_api = client.locations
-result = locations_api.list_locations()
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 channel = connection.channel()
 
