@@ -33,14 +33,15 @@ else:
                     date = datetime.datetime.utcnow()
                     occurred_at = str(date.isoformat("T")) + 'Z'
                     body['changes'].append({})
-                    body['changes'][i]['type'] = 'PHYSICAL_COUNT'
-                    body['changes'][i]['physical_count'] = {}
-                    body['changes'][i]['physical_count']['catalog_object_id'] = {}
-                    body['changes'][i]['physical_count']['catalog_object_id'] = line['catalog_object_id']
-                    body['changes'][i]['physical_count']['state'] = 'IN_STOCK'
-                    body['changes'][i]['physical_count']['location_id'] = line['location_id']
-                    body['changes'][i]['physical_count']['quantity'] = str(line['quantity'])
-                    body['changes'][i]['physical_count']['occurred_at'] = occurred_at
+                    body['changes'][i]['type'] = 'ADJUSTMENT'
+                    body['changes'][i]['adjustment'] = {}
+                    body['changes'][i]['adjustment']['occurred_at'] = occurred_at
+                    body['changes'][i]['adjustment']['catalog_object_id'] = line['catalog_object_id']
+                    body['changes'][i]['adjustment']['from_state'] = line['from_state']
+                    body['changes'][i]['adjustment']['to_state'] = line['to_state']
+                    body['changes'][i]['adjustment']['location_id'] = line['location_id']
+                    body['changes'][i]['adjustment']['quantity'] = str(line['quantity'])
+
                     i = i + 1
                 body['idempotency_key'] = str(uuid.uuid1())
                 body['ignore_unchanged_counts'] = True

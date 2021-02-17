@@ -15,11 +15,6 @@ catalog_api = client.catalog
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 channel = connection.channel()
 
-# locations = location_api.list_locations()
-# locations_ids = []
-# for i in range(len(locations.body['locations'])):
-#     locations_ids.append(locations.body['locations'][i]['id'])
-
 items = catalog_api.list_catalog('', 'ITEM_VARIATION')
 inventory_adjustments = []
 for i in range(len(items.body['objects'])):

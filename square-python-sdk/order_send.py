@@ -13,7 +13,7 @@ connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost')
 channel = connection.channel()
 
 body = {}
-body['location_ids'] = ['L13D0EZRRJPQD']
+body['location_ids'] = ['L13D0EZRRJPQD', 'L4SN6DDDDRS2G']
 orders = orders_api.search_orders(body)
 parser_dic = Parser._parse_square_order_to_general(orders.body['orders'])
 message = json.dumps(parser_dic)

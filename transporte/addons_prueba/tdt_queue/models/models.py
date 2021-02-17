@@ -87,47 +87,19 @@ class TdtQueue(models.Model):
     def _parse_general_payment_to_odoo(self, general_payment):
         odoo_payment = {
             'payment_square_id': general_payment['id'],
-            'amount': general_payment['amount_money']['amount'] if 'amount_money' in general_payment else None,
-            'currency_id': self.env['res.currency'].search([('name', '=', general_payment['amount_money']['currency'])]).id if 'amount' in general_payment else None,
+            'amount': general_payment['total_money']['amount'] / 100,
+            'currency_id': self.env['res.currency'].search([('name', '=', general_payment['total_money']['currency'])]).id,
             'tip_amount': general_payment['tip_money']['amount'] if 'tip_money' in general_payment else None,
-            'tip_currency_id' : 'asdf'
+            'tip_currency_id' : self.env['res.currency'].search([('name', '=', general_payment['tip_money']['currency'])]).id if 'tip_money' in general_payment else None,
+            'app_fee_amount': general_payment['app_fee_money']['amount'] if 'app_fee_money' in general_payment else None,
+            'app_fee_currency_id': self.env['res.currency'].search([('name', '=', general_payment['app_fee_money']['currency'])]).id if 'app_fee_money' in general_payment else None,
+            'payment_status': general_payment['status'] if 'status' in general_payment else None,
+            'pos_order_id': self.env['pos.order'].search([('square_order_id', '=', general_payment['order_id'])]).id,
+            'payment_method_id': 2,
+            #'payment_date': datetime.datetime.strptime(general_payment['created_at'],'%y-%m-%d %H:%M:%S').strftime('%m/%d/%y %H:%M:%S'),
+
         }
-
-        # if 'amount_money' in general_payment:
-        #     odoo_payment['amount'] = general_payment['amount_money']['amount']
-        #     currency = self.env['res.currency'].search([('name', '=', general_payment['amount_money']['currency'])])
-        #     odoo_payment['currency_id'] = currency.id
-        if 'tip_money' in general_payment:
-            odoo_payment['tip_amount'] = general_payment['tip_money']['amount']
-            currency_tip = self.env['res.currency'].search([('name', '=', general_payment['tip_money']['currency'])])
-            odoo_payment['tip_currency_id'] = currency_tip.id
-        if 'app_fee_money' in general_payment:
-            odoo_payment['app_fee_amount'] = general_payment['app_fee_money']['amount']
-            currency_fee = self.env['res.currency'].search([('name', '=', general_payment['app_fee_money']['currency'])])
-            odoo_payment['app_fee_currency_id'] = currency_fee.id
-        if 'status' in general_payment:
-            odoo_payment['payment_status'] = general_payment['status']
-        if 'source_type' in general_payment:
-            odoo_payment['payment_status'] = general_payment['source_type']
-        if 'location_id' in general_payment:
-            odoo_payment['square_location_id'] = general_payment['location_id']
-        if 'order_id' in general_payment:
-            odoo_payment['square_order_id'] = general_payment['order_id']
-        if 'buyer_email_address' in general_payment:
-            odoo_payment['buyer_email_address'] = general_payment['buyer_email_address']
-        if 'note' in general_payment:
-            odoo_payment['note'] = general_payment['note']
-        if 'customer_id' in general_payment:
-            odoo_payment['square_customer_id'] = general_payment['customer_id']
-        if 'receipt_number' in general_payment:
-            odoo_payment['square_receipt_number'] = general_payment['receipt_number']
-        if 'receipt_url' in general_payment:
-            odoo_payment['square_receipt_url'] = general_payment['receipt_url']
-
         return odoo_payment
-
-    def _parse_odoo_payment_to_general(self):
-        pass
 
     def _parse_general_location_to_odoo(self,general_location):
         odoo_location = {
@@ -321,11 +293,21 @@ class TdtQueue(models.Model):
         }
         return odoo_category
 
-    def _parse_odoo_inv_line_to_general(self, inventory_line):
+    def _parse_odoo_inv_line_to_general(self, inventory_line, square_location_id):
+        adjustment_quantity = abs(inventory_line.product_qty - inventory_line.theoretical_qty)
+        if inventory_line.product_qty > inventory_line.theoretical_qty:
+            from_state = 'NONE'
+            to_state = 'IN_STOCK'
+        if inventory_line.product_qty < inventory_line.theoretical_qty:
+            from_state = 'IN_STOCK'
+            to_state = 'WASTE'
+
         line_dic = {
             'catalog_object_id': inventory_line.product_id.square_item_id,
-            'location_id': self.env['stock.warehouse'].search([('view_location_id', '=', inventory_line.location_id.location_id.id)]).square_location_id,
-            'quantity': inventory_line.product_qty,
+            'location_id': square_location_id,
+            'quantity': adjustment_quantity,
+            'from_state': from_state,
+            'to_state': to_state
         }
 
         return line_dic
@@ -372,24 +354,10 @@ class TdtQueue(models.Model):
                     if 'type' in parsed_message and parsed_message['type'] == 'payment':
                         dict = self._parse_general_payment_to_odoo(parsed_message['data'])
                         payment_square_id = self.env['pos.payment'].search([('payment_square_id', '=', dict['payment_square_id'])])
-                        if 'reference_id' in parsed_message['data']:
-                            payment_odoo_id = self.env['pos.payment'].search([('id', '=', parsed_message['data']['reference_id'])])
-                        else:
-                            payment_odoo_id = None
-
                         if payment_square_id:
-                            # Si lo encuentra por square_id significa que odoo ya recibio informacion de este customer de square, por lo tanto este cliente en square ya tiene en el campo reference_id la id de odoo
                             payment_square_id.update(dict)
-                        elif payment_odoo_id:
-                            # Si no lo encuentra por square_id pero lo encuentra por reference_id, significa que odoo creo este cliente y lo envio a square, square lo creo en su sistema y en reference_id puso la id de odoo.
-                            payment_odoo_id.update(dict)
                         else:
-                            # Si no encuentra por square_id ni por id de odoo significa que esta es la primera vez que odoo sabe de este cliente
                             new_payment = self.env['pos.payment'].create(dict)
-                            parsed_message['data']['reference_id'] = new_customer.id
-                            parsed_message['key'] = 'odoo'
-                            message = json.dumps(parsed_message)
-                            channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
 
                     if 'type' in parsed_message and parsed_message['type'] == 'location':
                         dict = self._parse_general_location_to_odoo(parsed_message['data'])
@@ -457,30 +425,32 @@ class TdtQueue(models.Model):
                         square_inv.action_start()
                         for inventory_line in inventory_adjustment:
                             for line in inventory_line:
-                                is_adjustment = line['type'] == 'ADJUSTMENT' #si no es adjustment entonces es physical count
+                                is_adjustment = line['type'] == 'ADJUSTMENT'  # si no es adjustment entonces es physical count
                                 if is_adjustment:
                                     line = line['adjustment']
                                 else:
                                     line = line['physical_count']
-                                is_existing_adjustment = self.env['square_inventory_logs'].search([('square_inventory_adjustment_id', '=', line['id'])]) #verifica si es un adjustment o count ya registrado
+                                is_existing_adjustment = self.env['square_inventory_logs'].search(
+                                    [('square_inventory_adjustment_id', '=', line['id'])])  # verifica si es un adjustment o count ya registrado
                                 if not is_existing_adjustment:
                                     warehouse = self.env['stock.warehouse'].search([('square_location_id', '=', line['location_id'])])
                                     location_view = self.env['stock.location'].search([('id', '=', warehouse.view_location_id.id)])
                                     location_stock_name = location_view.name + '/Stock'
-                                    location_stock = self.env['stock.location'].search([('complete_name', '=', location_stock_name), ('location_id', '=', location_view.id)])
+                                    location_stock = self.env['stock.location'].search(
+                                        [('complete_name', '=', location_stock_name), ('location_id', '=', location_view.id)])
                                     item = self.env['product.product'].search([('square_item_id', '=', line['catalog_object_id'])])
                                     line_in_odoo = False
                                     i = 0
-                                    while not line_in_odoo and i < len(square_inv.line_ids): #Busca si hay un adjustment para ese objeto y ubicacion
+                                    while not line_in_odoo and i < len(square_inv.line_ids):  # Busca si hay un adjustment para ese objeto y ubicacion
                                         odoo_inventory_line = square_inv.line_ids[i]
                                         if odoo_inventory_line.product_id.id == item.id and odoo_inventory_line.location_id.id == location_stock.id:
-                                            if is_adjustment: #Si es un ajuste
+                                            if is_adjustment:  # Si es un ajuste
                                                 if line['to_state'] == 'IN_STOCK':
                                                     new_qty = odoo_inventory_line.product_qty + int(line['quantity'])
                                                 else:
                                                     new_qty = odoo_inventory_line.product_qty - int(line['quantity'])
                                                 odoo_inventory_line.update({'product_qty': new_qty})
-                                            else: #Si es un conteo
+                                            else:  # Si es un conteo
                                                 odoo_inventory_line.update({'product_qty': line['quantity']})
                                             line_in_odoo = True
                                         i = i + 1
@@ -508,25 +478,25 @@ class TdtQueue(models.Model):
     def _send_inventory_adjustments(self):
         connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
         channel = connection.channel()
-
+        last_call = self.env['ir.cron'].browse(21).lastcall
+        adjustments = self.env['stock.inventory'].search([('square_inventory_adjustment', '!=', True), ('create_date', '>=', last_call)])
         inventory_lines = []
-        square_inv = self.env['stock.inventory'].create({'name': 'Sync to square ' + str(datetime.datetime.now())})
-        square_inv.action_start()
-        primera_linea = square_inv.line_ids[0]
-        i = 0
-        for i in range(len(square_inv.line_ids.ids)):
-            if square_inv.line_ids[i].product_id.square_item_id is not None:
-                parsed_line = self._parse_odoo_inv_line_to_general(square_inv.line_ids[i])
-                inventory_lines.append(parsed_line)
+        for adjustment_id in adjustments.ids:
+            adjustment = self.env['stock.inventory'].browse(adjustment_id)
+            for line_id in adjustment.line_ids:
+                adjustment_line = self.env['stock.inventory.line'].browse(line_id)
+                warehouse = self.env['stock.warehouse'].search([('view_location_id', '=', adjustment_line.id.location_id.location_id.id)])
+                if warehouse.square_warehouse and adjustment_line.id.product_id.square_item_id and adjustment_line.id.product_qty != adjustment_line.id.theoretical_qty:
+                    parsed_line = self._parse_odoo_inv_line_to_general(adjustment_line.id, warehouse.square_location_id)
+                    inventory_lines.append(parsed_line)
 
-        general_dic = {
-            'data': inventory_lines,
-            'key': 'odoo',
-            'type': 'inventory'
-        }
-        square_inv.action_cancel_draft()
-        square_inv.unlink()
-        message = json.dumps(general_dic)
-        channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
+        if len(inventory_lines) > 0:
+            general_dic = {
+                'data': inventory_lines,
+                'key': 'odoo',
+                'type': 'inventory'
+            }
+            message = json.dumps(general_dic)
+            channel.basic_publish(exchange='master_exchange', routing_key='', body=message)
         channel.close()
         connection.close()
